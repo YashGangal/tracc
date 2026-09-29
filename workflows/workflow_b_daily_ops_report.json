@@ -1,5 +1,7 @@
 {
   "name": "Workflow B - Daily Operations Report Generator",
+  "id": "wf-b-daily-ops",
+  "active": false,
   "nodes": [
     {
       "parameters": {

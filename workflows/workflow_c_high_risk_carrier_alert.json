@@ -1,5 +1,7 @@
 {
   "name": "Workflow C - High-Risk Carrier Health Monitor",
+  "id": "wf-c-carrier-breach",
+  "active": false,
   "nodes": [
     {
       "parameters": {

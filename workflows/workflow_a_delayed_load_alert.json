@@ -1,5 +1,7 @@
 {
   "name": "Workflow A - Delayed Load Alert & Dispatch Escalation",
+  "id": "wf-a-delayed-load",
+  "active": false,
   "nodes": [
     {
       "parameters": {

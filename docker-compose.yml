@@ -75,6 +75,8 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:?Set_N8N_BASIC_AUTH_PASSWORD_in_.env}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:?Set_N8N_ENCRYPTION_KEY_in_.env}
       - WORKFLOW_API_TOKEN=${WORKFLOW_API_TOKEN:?Set_WORKFLOW_API_TOKEN_in_.env}
+      # Workflows read the token via {{ $env.WORKFLOW_API_TOKEN }} — allow it.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - GENERIC_TIMEZONE=America/New_York
       - WEBHOOK_URL=http://localhost:5678/
     volumes:
