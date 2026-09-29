@@ -10,6 +10,14 @@ from app.schemas.logistics import AgentActionTrace, AgentChatResponse
 from app.ml.predictor import predict_for_load
 from app.services.rag import query_knowledge_base
 from app.services.text_to_sql import execute_text_to_sql
+from app.services.conversation import classify_intent, chitchat_reply, OPERATIONAL
+from app.services.entity_resolution import (
+    resolve_driver,
+    resolve_carrier,
+    resolve_load,
+    format_clarification,
+    format_not_found,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -167,9 +175,27 @@ class OperationsAgent:
 
     # --- Autonomous ReAct Loop ---
 
+    def _finish(
+        self,
+        query: str,
+        traces: List[AgentActionTrace],
+        tools_used: List[str],
+        final_answer: str,
+    ) -> AgentChatResponse:
+        seen: List[str] = []
+        for t in tools_used:
+            if t not in seen:
+                seen.append(t)
+        return AgentChatResponse(
+            query=query,
+            final_answer=final_answer,
+            action_traces=traces,
+            tools_used=seen,
+        )
+
     async def execute_task(self, query: str) -> AgentChatResponse:
         """
-        Execute multi-step task by determining tools, executing actions, 
+        Execute multi-step task by determining tools, executing actions,
         and capturing complete thought-action-observation traces.
         """
         traces: List[AgentActionTrace] = []
@@ -178,6 +204,88 @@ class OperationsAgent:
 
         # Step 1: Analyze query intent & plan steps
         step_counter = 1
+
+        # Step 0: conversational intents bypass tools entirely.
+        # "hi" must greet, never trigger an operations report.
+        intent = classify_intent(query)
+        if intent != OPERATIONAL:
+            traces.append(AgentActionTrace(
+                step=step_counter,
+                thought=f"Message is conversational ({intent}) — answering directly without tools.",
+                action="classify_intent",
+                action_input={"intent": intent},
+                observation="No operational lookup needed."
+            ))
+            return self._finish(query, traces, tools_used, chitchat_reply(intent))
+
+        # Step 1a: explicit load reference (L14520 / load 4520) — most
+        # specific signal, wins over generic risk/carrier/driver branches.
+        load_res = resolve_load(self.db, query)
+        if load_res["status"] == "single":
+            lid = load_res["matches"][0]["id"]
+            info = self.tool_get_load(lid)
+            if "error" in info:
+                traces.append(AgentActionTrace(
+                    step=step_counter,
+                    thought="User referenced a specific load. Lookup failed.",
+                    action="get_load",
+                    action_input={"load_id": lid},
+                    observation=info["error"]
+                ))
+                return self._finish(
+                    query, traces, tools_used,
+                    f"### Load Lookup\n\n{info['error']}"
+                )
+            traces.append(AgentActionTrace(
+                step=step_counter,
+                thought=f"User referenced {info['load_number']} explicitly. Fetching live detail.",
+                action="get_load",
+                action_input={"load_id": lid},
+                observation=f"Located {info['load_number']}: {info['lane']} ({info['status']})."
+            ))
+            tools_used.append("get_load")
+            step_counter += 1
+            ml = self.tool_predict_load_delay(lid)
+            if "error" in ml:
+                risk_line = f"- **Delay risk:** unavailable ({ml['error']})"
+            else:
+                traces.append(AgentActionTrace(
+                    step=step_counter,
+                    thought="Scoring explicit load with the delay-risk model.",
+                    action="predict_load_delay",
+                    action_input={"load_id": lid},
+                    observation=f"{ml.get('late_probability_pct')}% ({ml.get('risk_level')} risk)."
+                ))
+                tools_used.append("predict_load_delay")
+                factors = "\n".join(
+                    f"  - **{f['factor']}:** {f['impact']}" for f in ml.get("top_factors", [])
+                )
+                risk_line = (
+                    f"- **Delay risk:** {ml.get('late_probability_pct')}% "
+                    f"({ml.get('risk_level')} risk)\n{factors}"
+                )
+            return self._finish(
+                query, traces, tools_used,
+                f"### Load {info['load_number']} — Status & Risk\n\n"
+                f"- **Route:** {info['lane']} ({info['distance_miles']} mi)\n"
+                f"- **Status:** `{info['status'].upper()}`\n"
+                f"- **Carrier:** {info['carrier_name']} · **Driver:** {info['driver_name']}\n"
+                f"{risk_line}"
+            )
+        elif load_res["status"] == "none" and load_res.get("candidate"):
+            traces.append(AgentActionTrace(
+                step=step_counter,
+                thought="User referenced a load number that does not exist.",
+                action="get_load",
+                action_input={"load_number": load_res["candidate"]},
+                observation="No matching load."
+            ))
+            return self._finish(
+                query, traces, tools_used,
+                f"### Load Lookup\n\nI couldn't find load "
+                f"*{load_res['candidate']}* in the system. Check the load number "
+                f"(e.g. L14520) and try again."
+            )
 
         # Check for multi-step scenario: "Find high-risk/delayed loads and prepare summary/report"
         # Carrier/driver mentions route to their inspection workflows first.
@@ -272,18 +380,69 @@ class OperationsAgent:
                 )
 
         elif "carrier" in q_lower:
-            # Carrier inspection workflow — honor explicit IDs instead of hardcoding 1.
+            # Carrier inspection workflow — honor explicit IDs, then names.
+            # Never silently answer about an arbitrary carrier.
+            fallback_note = ""
             requested_id = _extract_entity_id(query, ["carrier", "mc"])
-            carrier_id = requested_id
-            if carrier_id is None:
-                top_carrier = (
-                    self.db.query(Carrier.id)
-                    .join(Load, Carrier.id == Load.carrier_id)
-                    .group_by(Carrier.id)
-                    .order_by(func.count(Load.id).desc())
-                    .first()
-                )
-                carrier_id = top_carrier[0] if top_carrier else 1
+            if requested_id is not None:
+                carrier_id = requested_id
+            else:
+                res = resolve_carrier(self.db, query)
+                if res["status"] == "single":
+                    carrier_id = res["matches"][0]["id"]
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought=f"Resolved carrier name \"{res['matches'][0]['label']}\" to ID {carrier_id}.",
+                        action="resolve_entity",
+                        action_input={"entity": "carrier", "name": res["candidate"]},
+                        observation=f"Unique match: {res['matches'][0]['label']}."
+                    ))
+                    step_counter += 1
+                elif res["status"] == "multiple":
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="Carrier name is ambiguous — asking user to disambiguate instead of guessing.",
+                        action="resolve_entity",
+                        action_input={"entity": "carrier", "name": res["candidate"]},
+                        observation=f"{len(res['matches'])} candidates."
+                    ))
+                    return self._finish(
+                        query, traces, tools_used,
+                        "### Which carrier?\n\n" + format_clarification("carrier", res)
+                    )
+                elif res["status"] == "generic":
+                    top_carrier = (
+                        self.db.query(Carrier.id)
+                        .join(Load, Carrier.id == Load.carrier_id)
+                        .group_by(Carrier.id)
+                        .order_by(func.count(Load.id).desc())
+                        .first()
+                    )
+                    carrier_id = top_carrier[0] if top_carrier else 1
+                    fallback_note = (
+                        "\n*You didn't name a carrier, so I'm showing our "
+                        "highest-volume carrier. Ask about one by name for specifics.*\n"
+                    )
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="No carrier named — showing the highest-volume carrier, stated explicitly.",
+                        action="resolve_entity",
+                        action_input={"entity": "carrier", "name": None},
+                        observation="Falling back to highest-volume carrier with disclosure."
+                    ))
+                    step_counter += 1
+                else:
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="Carrier name matched nothing.",
+                        action="resolve_entity",
+                        action_input={"entity": "carrier", "name": res["candidate"]},
+                        observation="No match."
+                    ))
+                    return self._finish(
+                        query, traces, tools_used,
+                        "### Carrier not found\n\n" + format_not_found("carrier", res)
+                    )
             perf = self.tool_get_carrier_performance(carrier_id)
             if "error" in perf:
                 traces.append(AgentActionTrace(
@@ -312,7 +471,7 @@ class OperationsAgent:
                 else:
                     rec = "Breach-level performance — recommend probation review per SOP-05."
                 final_answer = (
-                    f"### Carrier Performance Inspection: {perf['name']}\n\n"
+                    f"### Carrier Performance Inspection: {perf['name']}\n{fallback_note}"
                     f"- **MC Number:** {perf['mc_number']}\n"
                     f"- **Safety Status:** `{perf['status'].upper()}`\n"
                     f"- **Fleet Size:** {perf['fleet_size']} power units\n"
@@ -322,16 +481,67 @@ class OperationsAgent:
                 )
 
         elif "driver" in q_lower:
+            # Driver inspection — honor explicit IDs, then names.
+            # Never silently answer about an arbitrary driver.
+            fallback_note = ""
             requested_id = _extract_entity_id(query, ["driver", "cdl"])
             if requested_id is not None:
                 driver_id = requested_id
             else:
-                top_driver = (
-                    self.db.query(Driver.id)
-                    .order_by(Driver.safety_score.desc())
-                    .first()
-                )
-                driver_id = top_driver[0] if top_driver else 1
+                res = resolve_driver(self.db, query)
+                if res["status"] == "single":
+                    driver_id = res["matches"][0]["id"]
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought=f"Resolved driver name \"{res['matches'][0]['label']}\" to ID {driver_id}.",
+                        action="resolve_entity",
+                        action_input={"entity": "driver", "name": res["candidate"]},
+                        observation=f"Unique match: {res['matches'][0]['label']}."
+                    ))
+                    step_counter += 1
+                elif res["status"] == "multiple":
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="Driver name is ambiguous — asking user to disambiguate instead of guessing.",
+                        action="resolve_entity",
+                        action_input={"entity": "driver", "name": res["candidate"]},
+                        observation=f"{len(res['matches'])} candidates."
+                    ))
+                    return self._finish(
+                        query, traces, tools_used,
+                        "### Which driver?\n\n" + format_clarification("driver", res)
+                    )
+                elif res["status"] == "generic":
+                    top_driver = (
+                        self.db.query(Driver.id)
+                        .order_by(Driver.safety_score.desc())
+                        .first()
+                    )
+                    driver_id = top_driver[0] if top_driver else 1
+                    fallback_note = (
+                        "\n*You didn't name a driver, so I'm showing our "
+                        "top driver by safety score. Ask about one by name for specifics.*\n"
+                    )
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="No driver named — showing the top-safety driver, stated explicitly.",
+                        action="resolve_entity",
+                        action_input={"entity": "driver", "name": None},
+                        observation="Falling back to top-safety driver with disclosure."
+                    ))
+                    step_counter += 1
+                else:
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="Driver name matched nothing.",
+                        action="resolve_entity",
+                        action_input={"entity": "driver", "name": res["candidate"]},
+                        observation="No match."
+                    ))
+                    return self._finish(
+                        query, traces, tools_used,
+                        "### Driver not found\n\n" + format_not_found("driver", res)
+                    )
             driver_info = self.tool_get_driver_performance(driver_id)
             if "error" in driver_info:
                 traces.append(AgentActionTrace(
@@ -353,7 +563,7 @@ class OperationsAgent:
                 ))
                 tools_used.append("get_driver_performance")
                 final_answer = (
-                    f"### Driver Profile & Safety Record\n\n"
+                    f"### Driver Profile & Safety Record\n{fallback_note}\n"
                     f"- **Driver:** {driver_info['name']} ({driver_info['license_number']})\n"
                     f"- **Affiliated Carrier:** {driver_info['carrier_name']}\n"
                     f"- **Safety Score:** **{driver_info['safety_score']}/100**\n"

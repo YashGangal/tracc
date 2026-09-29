@@ -268,6 +268,209 @@ def test_agent_chat_accepts_workflow_token():
         settings.WORKFLOW_API_TOKEN = old_token
 
 
+# --- 7b. Conversational copilot (ChatGPT-style chat + entity resolution) ---
+
+def test_chat_greeting_needs_no_tools(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "hi"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["intent"] == "greeting"
+    assert data["mode_used"] == "chitchat"
+    assert "Tracc" in data["reply"]
+    assert data["action_traces"] == []
+    assert data["session_id"]
+
+
+def test_chat_chitchat_intents(dispatcher_headers):
+    cases = {
+        "what can you do?": "help",
+        "who are you?": "identity",
+        "thank you!": "thanks",
+        "bye!": "farewell",
+    }
+    for message, intent in cases.items():
+        resp = client.post(
+            "/api/v1/copilot/chat", json={"message": message}, headers=dispatcher_headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["intent"] == intent, message
+
+
+def test_chat_greeting_prefixed_question_routes_operational(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "Hi, how many loads are delayed?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode_used"] == "sql"
+    assert data["row_count"] is not None and data["row_count"] > 0
+
+
+def test_chat_sql_routing(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "How many loads are delayed?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode_used"] == "sql"
+    assert data["generated_sql"].strip().upper().startswith("SELECT")
+
+
+def test_chat_rag_routing(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "What is the driver breakdown protocol?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode_used"] == "rag"
+    assert len(data["citations"]) > 0
+
+
+def _seeded_driver_name():
+    from app.db.models import Driver
+    db = SessionLocal()
+    try:
+        return db.query(Driver.name).first()[0]
+    finally:
+        db.close()
+
+
+def _seeded_load_number():
+    from app.db.models import Load
+    db = SessionLocal()
+    try:
+        return db.query(Load.load_number).first()[0]
+    finally:
+        db.close()
+
+
+def test_chat_driver_by_name(dispatcher_headers):
+    name = _seeded_driver_name()
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": f"How is driver {name} doing?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode_used"] == "agent"
+    assert name in data["reply"]
+
+
+def test_chat_unknown_driver_is_graceful(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "How is driver Zzzork Qqq doing?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    assert "couldn't find" in resp.json()["reply"].lower()
+
+
+def test_chat_ambiguous_driver_asks_to_clarify(dispatcher_headers):
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    d1 = Driver(name="Testsmith Alpha", license_number="TEST-AMB-001",
+                carrier_id=carrier_id, experience_years=5, safety_score=90.0, status="available")
+    d2 = Driver(name="Testsmith Omega", license_number="TEST-AMB-002",
+                carrier_id=carrier_id, experience_years=3, safety_score=80.0, status="available")
+    db.add_all([d1, d2])
+    db.commit()
+    try:
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "Tell me about driver Testsmith"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        reply = resp.json()["reply"]
+        assert "which" in reply.lower()
+        assert "Testsmith Alpha" in reply and "Testsmith Omega" in reply
+    finally:
+        db.query(Driver).filter(Driver.license_number.in_(["TEST-AMB-001", "TEST-AMB-002"])).delete()
+        db.commit()
+        db.close()
+
+
+def test_chat_memory_followup_inherits_driver(dispatcher_headers):
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    db.add(Driver(name="Memory Testdriver", license_number="TEST-MEM-001",
+                  carrier_id=carrier_id, experience_years=7, safety_score=93.0,
+                  status="available"))
+    db.commit()
+    try:
+        first = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "Tell me about driver Memory Testdriver"},
+            headers=dispatcher_headers,
+        )
+        assert first.status_code == 200
+        assert "Memory Testdriver" in first.json()["reply"]
+        session_id = first.json()["session_id"]
+        second = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "What is his safety score?", "session_id": session_id},
+            headers=dispatcher_headers,
+        )
+        assert second.status_code == 200
+        data = second.json()
+        assert data["session_id"] == session_id
+        assert "Memory Testdriver" in data["reply"]
+        assert "93" in data["reply"]
+    finally:
+        db.query(Driver).filter(Driver.license_number == "TEST-MEM-001").delete()
+        db.commit()
+        db.close()
+
+
+def test_chat_load_by_number(dispatcher_headers):
+    number = _seeded_load_number()
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": f"Where is load {number}?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode_used"] == "agent"
+    assert number in data["reply"]
+
+
+def test_chat_unknown_load_is_graceful(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "Where is load L999999?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    assert "couldn't find" in resp.json()["reply"]
+
+
+def test_agent_greeting_direct_has_no_tools(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/agent/chat",
+        json={"query": "hello"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tools_used"] == []
+    assert "Tracc" in data["final_answer"]
+
+
 # --- 8. Alerts & Workflow Automations ---
 
 def test_alerts_list_and_workflow_trigger(manager_headers):

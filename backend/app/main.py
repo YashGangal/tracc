@@ -8,8 +8,8 @@ from app.db.session import init_db
 from app.services.rag import index_sop_documents
 from app.ml.predictor import _load_artifacts
 from app.api.v1 import (
-    auth, loads, carriers, drivers, analytics, 
-    predictions, alerts, copilot, rag, agent
+    auth, loads, carriers, drivers, analytics,
+    predictions, alerts, copilot, rag, agent, chat
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +62,7 @@ app.include_router(analytics.router, prefix=settings.API_V1_STR)
 app.include_router(predictions.router, prefix=settings.API_V1_STR)
 app.include_router(alerts.router, prefix=settings.API_V1_STR)
 app.include_router(copilot.router, prefix=settings.API_V1_STR)
+app.include_router(chat.router, prefix=settings.API_V1_STR)
 app.include_router(rag.router, prefix=settings.API_V1_STR)
 app.include_router(agent.router, prefix=settings.API_V1_STR)
 

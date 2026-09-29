@@ -2,6 +2,7 @@
 
 **Review date:** 2026-09-29 (verified by full folder sweep + test run)
 **Cleanup + git:** 2026-09-29 — dead weight deleted (~350MB), docs → `docs/`, ignore files hardened, first commit `7b3aeb2` (119 files, clean tree).
+**Phase 1 conversational copilot (backend):** chitchat intents + unified `POST /copilot/chat` (intent routing, session memory, persona) + name-based driver/carrier/load resolution replacing silent wrong-entity fallbacks. 58/58 pytest. Frontend chat UI (Phase 2) not started.
 **Overall:** Working local product, now version-controlled. Remaining work is keys, docs rewrite, Docker rebuild + verification.
 
 ## Verified just now

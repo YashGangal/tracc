@@ -228,3 +228,19 @@ class AgentChatResponse(BaseModel):
     final_answer: str
     action_traces: List[AgentActionTrace]
     tools_used: List[str]
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    session_id: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    intent: str
+    mode_used: str  # chitchat | sql | rag | agent
+    session_id: str
+    action_traces: List[AgentActionTrace] = []
+    citations: List[RAGCitation] = []
+    generated_sql: Optional[str] = None
+    row_count: Optional[int] = None
