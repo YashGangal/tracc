@@ -36,7 +36,7 @@
 1. ✅ ~~`git init` + first commit~~ — done 2026-09-29 (`7b3aeb2`, `.env`/`*.db`/venv excluded).
 2. ✅ ~~Stop the Docker bloat~~ — `F1/`, both backups, `frontend/node_modules` deleted; `.dockerignore` rewritten (also covers `*.db`, `.env`, exports).
 3. **Rotate both API keys** — Gemini + OpenRouter keys appeared in chat; regenerate, update `.env`.
-4. **Rebuild + click-through** — `docker compose up --build -d`, then login → KPIs → drawer → risk → copilot (3 modes) → upload (manager) → trigger workflow.
+4. ✅ ~~Rebuild + click-through~~ — verified 2026-09-29 on **local stack** (Docker Desktop not installed on this machine): backend `43/43` pytest, uvicorn `:8000` healthy, full API pass green (login dispatcher+manager, KPIs 10k loads/84.1% OTD, load drawer, SHAP prediction, SQL/RAG/agent copilot, manager upload, workflow_a trigger → 1 alert, resolve), frontend `npm install` + `vite build` + `tsc` clean, dev server `:5173` up. Container leg (`docker compose up --build`) still pending Docker install.
 5. **Fix stale docs** — `README.md`, `CONTINUATION_PLAN.md`, `FRONTEND_SPEC.md`, `BASELINE_VERIFICATION.md`, `scratchpad_dmtc6ly6.md` still describe the old Logix/XGBoost/14-test project. Rewrite or delete.
 6. **Import n8n workflows** into `:5678` and watch one run fire.
 7. ✅ ~~Delete `F1/` + both backups~~ — done 2026-09-29 (nothing referenced them).
