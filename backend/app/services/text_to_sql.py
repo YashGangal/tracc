@@ -161,7 +161,7 @@ Query executed: {raw_sql}
 Columns: {columns}
 Sample rows: {rows[:8]}
 Total rows returned: {len(rows)}
-"""
+Present the answer as short markdown bullets with **bold** key figures plus a one-line takeaway. Do NOT paste markdown tables or raw row dumps — the data table is displayed separately below your summary."""
     explanation = await AIProvider.generate_completion(
         prompt=explanation_prompt,
         system_prompt="You are an AI Logistics Operations Copilot summarizing operational data concisely and accurately.",

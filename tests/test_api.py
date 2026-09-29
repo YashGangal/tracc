@@ -1176,3 +1176,81 @@ def test_nvidia_without_key_skips_to_fallback():
     finally:
         settings.AI_PROVIDER, settings.NVIDIA_API_KEY, settings.NVIDIA_MODEL = old
     assert isinstance(out, str) and len(out) > 0
+
+
+def test_nvidia_retries_once_on_503_then_succeeds(monkeypatch):
+    from app.core import ai_provider as ap
+    from app.core.ai_provider import AIProvider
+    import asyncio
+
+    calls = {"n": 0}
+
+    class FakeResp:
+        def __init__(self, status):
+            self.status_code = status
+            self.text = "busy"
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Recovered after retry"}}]}
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            calls["n"] += 1
+            return FakeResp(503 if calls["n"] == 1 else 200)
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(ap.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(ap.asyncio, "sleep", no_sleep)
+    old = _set_nvidia(settings, "nvidia", "nvapi-test", "m")
+    try:
+        out = asyncio.run(AIProvider.generate_completion("hi"))
+    finally:
+        settings.AI_PROVIDER, settings.NVIDIA_API_KEY, settings.NVIDIA_MODEL = old
+    assert out == "Recovered after retry"
+    assert calls["n"] == 2
+
+
+def test_nvidia_double_503_falls_back(monkeypatch):
+    from app.core import ai_provider as ap
+    from app.core.ai_provider import AIProvider
+    import asyncio
+
+    class FakeResp:
+        status_code = 503
+        text = "busy"
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            return FakeResp()
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(ap.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(ap.asyncio, "sleep", no_sleep)
+    old = _set_nvidia(settings, "nvidia", "nvapi-test", "m")
+    try:
+        out = asyncio.run(AIProvider.generate_completion("hi"))
+    finally:
+        settings.AI_PROVIDER, settings.NVIDIA_API_KEY, settings.NVIDIA_MODEL = old
+    assert isinstance(out, str) and len(out) > 0

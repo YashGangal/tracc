@@ -27,6 +27,7 @@ export function Markdown({ text }: { text: string }) {
   const blocks: (
     | { t: "h"; level: number; text: string }
     | { t: "list"; ordered: boolean; items: string[] }
+    | { t: "table"; header: string[]; rows: string[][] }
     | { t: "p"; text: string }
   )[] = [];
   let list: { t: "list"; ordered: boolean; items: string[] } | null = null;
@@ -36,8 +37,36 @@ export function Markdown({ text }: { text: string }) {
       list = null;
     }
   };
-  lines.forEach((raw) => {
+  const isPipeRow = (line: string) => /^\s*\|.*\|\s*$/.test(line);
+  const isDelimiterRow = (line: string) =>
+    /^\s*\|?[\s:|-]+\|?[\s|:-]*$/.test(line) && /-/.test(line);
+  const splitCells = (line: string) =>
+    line
+      .trim()
+      .replace(/^\||\|$/g, "")
+      .split("|")
+      .map((c) => c.trim());
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
     const line = raw.replace(/\s+$/, "");
+    // GFM-style pipe table: header row + delimiter row + body rows.
+    if (
+      isPipeRow(line) &&
+      i + 1 < lines.length &&
+      isDelimiterRow(lines[i + 1].replace(/\s+$/, ""))
+    ) {
+      flush();
+      const header = splitCells(line);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && isPipeRow(lines[i].replace(/\s+$/, ""))) {
+        rows.push(splitCells(lines[i].replace(/\s+$/, "")));
+        i += 1;
+      }
+      blocks.push({ t: "table", header, rows });
+      continue;
+    }
     const h = line.match(/^(#{1,3})\s+(.*)$/);
     const ul = line.match(/^\s*[-*]\s+(.*)$/);
     const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
@@ -62,7 +91,8 @@ export function Markdown({ text }: { text: string }) {
       flush();
       blocks.push({ t: "p", text: line });
     }
-  });
+    i += 1;
+  }
   flush();
   return (
     <div className="space-y-2 leading-relaxed">
@@ -88,6 +118,30 @@ export function Markdown({ text }: { text: string }) {
                 <li key={j}>{inlineMd(it, `li${i}-${j}`)}</li>
               ))}
             </Tag>
+          );
+        }
+        if (b.t === "table") {
+          return (
+            <div key={i} className="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-neutral-100 dark:bg-neutral-800/80 font-mono text-[11px] text-neutral-500">
+                    {b.header.map((c, j) => (
+                      <th key={j} className="py-2 px-3 font-semibold">{inlineMd(c, `th${i}-${j}`)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {b.rows.map((row, j) => (
+                    <tr key={j} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40">
+                      {row.map((c, k) => (
+                        <td key={k} className="py-2 px-3 font-mono tabular-nums">{inlineMd(c, `td${i}-${j}-${k}`)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           );
         }
         return <p key={i}>{inlineMd(b.text, `p${i}`)}</p>;

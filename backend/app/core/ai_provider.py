@@ -1,3 +1,4 @@
+import asyncio
 import os
 import json
 import logging
@@ -117,6 +118,7 @@ class AIProvider:
 
         # 3b. Try NVIDIA NIM if selected and a key is available.
         # OpenAI-compatible chat API: https://integrate.api.nvidia.com/v1
+        # Transient 429/503s (free-tier capacity) get one retry before fallback.
         if settings.AI_PROVIDER in {"nvidia", "auto"} and settings.NVIDIA_API_KEY:
             try:
                 url = "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -131,18 +133,27 @@ class AIProvider:
                     "max_tokens": max_tokens
                 }
                 async with httpx.AsyncClient(timeout=20.0) as client:
-                    resp = await client.post(url, headers=headers, json=payload)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        content = data["choices"][0]["message"]["content"]
-                        if content and content.strip():
-                            return content
-                        logger.warning("NVIDIA API returned empty content; falling back to offline heuristics.")
-                    try:
-                        err_body = resp.text[:300]
-                    except Exception:
-                        err_body = "<unreadable>"
-                    logger.warning(f"NVIDIA API returned {resp.status_code}: {err_body}; falling back to offline heuristics.")
+                    for attempt in (1, 2):
+                        resp = await client.post(url, headers=headers, json=payload)
+                        if resp.status_code in (429, 503) and attempt == 1:
+                            logger.warning(
+                                f"NVIDIA API returned {resp.status_code}; retrying once before fallback."
+                            )
+                            await asyncio.sleep(3)
+                            continue
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            content = data["choices"][0]["message"]["content"]
+                            if content and content.strip():
+                                return content
+                            logger.warning("NVIDIA API returned empty content; falling back to offline heuristics.")
+                            break
+                        try:
+                            err_body = resp.text[:300]
+                        except Exception:
+                            err_body = "<unreadable>"
+                        logger.warning(f"NVIDIA API returned {resp.status_code}: {err_body}; falling back to offline heuristics.")
+                        break
             except Exception as e:
                 logger.warning(f"NVIDIA generation error: {e}")
 
