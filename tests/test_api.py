@@ -507,6 +507,53 @@ def test_chat_new_entity_ignores_stale_session_context(dispatcher_headers):
         db.close()
 
 
+def test_agent_bare_driver_name_resolves(dispatcher_headers):
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    db.add(Driver(name="Bare Nametest", license_number="TEST-BARE-001",
+                  carrier_id=carrier_id, experience_years=2, safety_score=87.0,
+                  status="available"))
+    db.commit()
+    try:
+        resp = client.post(
+            "/api/v1/agent/chat",
+            json={"query": "Bare Nametest"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "get_driver_performance" in data["tools_used"]
+        assert "Bare Nametest" in data["final_answer"]
+        assert "87" in data["final_answer"]
+    finally:
+        db.query(Driver).filter(Driver.license_number == "TEST-BARE-001").delete()
+        db.commit()
+        db.close()
+
+
+def test_chat_bare_carrier_name_resolves(dispatcher_headers):
+    from app.db.models import Carrier
+    db = SessionLocal()
+    db.add(Carrier(name="Barecheck Logistics", mc_number="MC-TEST-BARE-1",
+                   dot_number="DOT-TEST-BARE-1", location="Austin, TX"))
+    db.commit()
+    try:
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "Barecheck Logistics"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["mode_used"] == "agent"
+        assert "Barecheck Logistics" in data["reply"]
+    finally:
+        db.query(Carrier).filter(Carrier.mc_number == "MC-TEST-BARE-1").delete()
+        db.commit()
+        db.close()
+
+
 # --- 8. Alerts & Workflow Automations ---
 
 def test_alerts_list_and_workflow_trigger(manager_headers):

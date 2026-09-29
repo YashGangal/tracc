@@ -193,6 +193,86 @@ class OperationsAgent:
             tools_used=seen,
         )
 
+    def _driver_profile(
+        self,
+        driver_id: int,
+        traces: List[AgentActionTrace],
+        tools_used: List[str],
+        step: int,
+        note: str = "",
+    ) -> str:
+        info = self.tool_get_driver_performance(driver_id)
+        if "error" in info:
+            traces.append(AgentActionTrace(
+                step=step,
+                thought="Retrieving driver safety rating — lookup failed.",
+                action="get_driver_performance",
+                action_input={"driver_id": driver_id},
+                observation=info["error"]
+            ))
+            tools_used.append("get_driver_performance")
+            return f"### Driver Profile & Safety Record\n\nDriver ID {driver_id} not found. {info['error']}"
+        traces.append(AgentActionTrace(
+            step=step,
+            thought="Retrieving driver safety rating and compliance history.",
+            action="get_driver_performance",
+            action_input={"driver_id": driver_id},
+            observation=f"Driver {info['name']} located with safety score {info['safety_score']}."
+        ))
+        tools_used.append("get_driver_performance")
+        return (
+            f"### Driver Profile & Safety Record\n{note}\n"
+            f"- **Driver:** {info['name']} ({info['license_number']})\n"
+            f"- **Affiliated Carrier:** {info['carrier_name']}\n"
+            f"- **Safety Score:** **{info['safety_score']}/100**\n"
+            f"- **Commercial Experience:** {info['experience_years']} years\n"
+            f"- **Duty Status:** `{info['status'].upper()}`"
+        )
+
+    def _carrier_profile(
+        self,
+        carrier_id: int,
+        traces: List[AgentActionTrace],
+        tools_used: List[str],
+        step: int,
+        note: str = "",
+    ) -> str:
+        perf = self.tool_get_carrier_performance(carrier_id)
+        if "error" in perf:
+            traces.append(AgentActionTrace(
+                step=step,
+                thought="User inquired about carrier metrics. Attempted lookup failed.",
+                action="get_carrier_performance",
+                action_input={"carrier_id": carrier_id},
+                observation=perf["error"]
+            ))
+            tools_used.append("get_carrier_performance")
+            return f"### Carrier Performance Inspection\n\nCarrier ID {carrier_id} not found. {perf['error']}"
+        traces.append(AgentActionTrace(
+            step=step,
+            thought="User inquired about carrier metrics. Fetching performance record for requested carrier.",
+            action="get_carrier_performance",
+            action_input={"carrier_id": carrier_id},
+            observation=f"Retrieved {perf['name']}: OTD {perf['on_time_rate_pct']}% across {perf['total_loads']} loads."
+        ))
+        tools_used.append("get_carrier_performance")
+        otd = perf["on_time_rate_pct"]
+        if otd >= 85:
+            rec = "Performance satisfies standard carrier compliance (>85%). No probation action needed."
+        elif otd >= 70:
+            rec = "Below the 85% compliance bar — place on watchlist and review weekly."
+        else:
+            rec = "Breach-level performance — recommend probation review per SOP-05."
+        return (
+            f"### Carrier Performance Inspection: {perf['name']}\n{note}"
+            f"- **MC Number:** {perf['mc_number']}\n"
+            f"- **Safety Status:** `{perf['status'].upper()}`\n"
+            f"- **Fleet Size:** {perf['fleet_size']} power units\n"
+            f"- **On-Time Delivery Rate:** **{perf['on_time_rate_pct']}%** across {perf['total_loads']} completed dispatches.\n"
+            f"- **Total Dispatches Delayed:** {perf['delayed_loads']} loads.\n"
+            f"- **Operational Recommendation:** {rec}"
+        )
+
     async def execute_task(self, query: str) -> AgentChatResponse:
         """
         Execute multi-step task by determining tools, executing actions,
@@ -443,42 +523,9 @@ class OperationsAgent:
                         query, traces, tools_used,
                         "### Carrier not found\n\n" + format_not_found("carrier", res)
                     )
-            perf = self.tool_get_carrier_performance(carrier_id)
-            if "error" in perf:
-                traces.append(AgentActionTrace(
-                    step=1,
-                    thought="User inquired about carrier metrics. Attempted lookup failed.",
-                    action="get_carrier_performance",
-                    action_input={"carrier_id": carrier_id},
-                    observation=perf["error"]
-                ))
-                tools_used.append("get_carrier_performance")
-                final_answer = f"### Carrier Performance Inspection\n\nCarrier ID {carrier_id} not found. {perf['error']}"
-            else:
-                traces.append(AgentActionTrace(
-                    step=1,
-                    thought="User inquired about carrier metrics. Fetching performance record for requested carrier.",
-                    action="get_carrier_performance",
-                    action_input={"carrier_id": carrier_id},
-                    observation=f"Retrieved {perf['name']}: OTD {perf['on_time_rate_pct']}% across {perf['total_loads']} loads."
-                ))
-                tools_used.append("get_carrier_performance")
-                otd = perf["on_time_rate_pct"]
-                if otd >= 85:
-                    rec = "Performance satisfies standard carrier compliance (>85%). No probation action needed."
-                elif otd >= 70:
-                    rec = "Below the 85% compliance bar — place on watchlist and review weekly."
-                else:
-                    rec = "Breach-level performance — recommend probation review per SOP-05."
-                final_answer = (
-                    f"### Carrier Performance Inspection: {perf['name']}\n{fallback_note}"
-                    f"- **MC Number:** {perf['mc_number']}\n"
-                    f"- **Safety Status:** `{perf['status'].upper()}`\n"
-                    f"- **Fleet Size:** {perf['fleet_size']} power units\n"
-                    f"- **On-Time Delivery Rate:** **{perf['on_time_rate_pct']}%** across {perf['total_loads']} completed dispatches.\n"
-                    f"- **Total Dispatches Delayed:** {perf['delayed_loads']} loads.\n"
-                    f"- **Operational Recommendation:** {rec}"
-                )
+            final_answer = self._carrier_profile(
+                carrier_id, traces, tools_used, 1, fallback_note
+            )
 
         elif "driver" in q_lower:
             # Driver inspection — honor explicit IDs, then names.
@@ -542,34 +589,9 @@ class OperationsAgent:
                         query, traces, tools_used,
                         "### Driver not found\n\n" + format_not_found("driver", res)
                     )
-            driver_info = self.tool_get_driver_performance(driver_id)
-            if "error" in driver_info:
-                traces.append(AgentActionTrace(
-                    step=1,
-                    thought="Retrieving driver safety rating — lookup failed.",
-                    action="get_driver_performance",
-                    action_input={"driver_id": driver_id},
-                    observation=driver_info["error"]
-                ))
-                tools_used.append("get_driver_performance")
-                final_answer = f"### Driver Profile & Safety Record\n\nDriver ID {driver_id} not found. {driver_info['error']}"
-            else:
-                traces.append(AgentActionTrace(
-                    step=1,
-                    thought="Retrieving driver safety rating and compliance history.",
-                    action="get_driver_performance",
-                    action_input={"driver_id": driver_id},
-                    observation=f"Driver {driver_info['name']} located with safety score {driver_info['safety_score']}."
-                ))
-                tools_used.append("get_driver_performance")
-                final_answer = (
-                    f"### Driver Profile & Safety Record\n{fallback_note}\n"
-                    f"- **Driver:** {driver_info['name']} ({driver_info['license_number']})\n"
-                    f"- **Affiliated Carrier:** {driver_info['carrier_name']}\n"
-                    f"- **Safety Score:** **{driver_info['safety_score']}/100**\n"
-                    f"- **Commercial Experience:** {driver_info['experience_years']} years\n"
-                    f"- **Duty Status:** `{driver_info['status'].upper()}`"
-                )
+            final_answer = self._driver_profile(
+                driver_id, traces, tools_used, 1, fallback_note
+            )
 
         elif "sop" in q_lower or "procedure" in q_lower or "how to" in q_lower or "rule" in q_lower:
             traces.append(AgentActionTrace(
@@ -584,25 +606,71 @@ class OperationsAgent:
             final_answer = f"### SOP Operational Guidance\n\n{rag_res['sop_answer']}\n\n*Verified against: {', '.join(rag_res['citations'])}*"
 
         else:
-            # Default operational report workflow
-            traces.append(AgentActionTrace(
-                step=1,
-                thought="Dispatcher requested general operations status. Compiling executive KPI report across all loads and fleet activity.",
-                action="generate_report",
-                action_input={"report_type": "operations_overview"},
-                observation="Aggregated load counts, delay frequencies, and unresolved alerts."
-            ))
-            tools_used.append("generate_report")
-            rep = self.tool_generate_report()
-            final_answer = (
-                f"### Daily AI Operations Overview\n\n"
-                f"- **Total Monitored Loads:** {rep['total_monitored_loads']:,}\n"
-                f"- **Currently In Transit:** {rep['active_in_transit']:,}\n"
-                f"- **Active Delayed Loads:** {rep['currently_delayed']:,}\n"
-                f"- **Fleet On-Time Delivery Rate:** **{rep['delivered_on_time_pct']}%**\n"
-                f"- **Active Unresolved Alerts:** {rep['active_unresolved_alerts']}\n\n"
-                f"**Recommendation:** {rep['action_required']}"
-            )
+            # Bare-name queries ("Richard Garcia") carry no keyword — try to
+            # resolve a driver/carrier before surrendering to the generic report.
+            res_d = resolve_driver(self.db, query)
+            if res_d["status"] == "single":
+                traces.append(AgentActionTrace(
+                    step=step_counter,
+                    thought=f"Bare name resolved to driver \"{res_d['matches'][0]['label']}\".",
+                    action="resolve_entity",
+                    action_input={"entity": "driver", "name": res_d["candidate"]},
+                    observation=f"Unique match: {res_d['matches'][0]['label']}."
+                ))
+                final_answer = self._driver_profile(
+                    res_d["matches"][0]["id"], traces, tools_used, step_counter
+                )
+            else:
+                res_c = resolve_carrier(self.db, query)
+                if res_c["status"] == "single":
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought=f"Bare name resolved to carrier \"{res_c['matches'][0]['label']}\".",
+                        action="resolve_entity",
+                        action_input={"entity": "carrier", "name": res_c["candidate"]},
+                        observation=f"Unique match: {res_c['matches'][0]['label']}."
+                    ))
+                    final_answer = self._carrier_profile(
+                        res_c["matches"][0]["id"], traces, tools_used, step_counter
+                    )
+                elif res_d["status"] == "multiple":
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="Bare name is ambiguous — asking user to disambiguate.",
+                        action="resolve_entity",
+                        action_input={"entity": "driver", "name": res_d["candidate"]},
+                        observation=f"{len(res_d['matches'])} candidates."
+                    ))
+                    final_answer = "### Which driver?\n\n" + format_clarification("driver", res_d)
+                elif res_c["status"] == "multiple":
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="Bare name is ambiguous — asking user to disambiguate.",
+                        action="resolve_entity",
+                        action_input={"entity": "carrier", "name": res_c["candidate"]},
+                        observation=f"{len(res_c['matches'])} candidates."
+                    ))
+                    final_answer = "### Which carrier?\n\n" + format_clarification("carrier", res_c)
+                else:
+                    # Default operational report workflow
+                    traces.append(AgentActionTrace(
+                        step=1,
+                        thought="Dispatcher requested general operations status. Compiling executive KPI report across all loads and fleet activity.",
+                        action="generate_report",
+                        action_input={"report_type": "operations_overview"},
+                        observation="Aggregated load counts, delay frequencies, and unresolved alerts."
+                    ))
+                    tools_used.append("generate_report")
+                    rep = self.tool_generate_report()
+                    final_answer = (
+                        f"### Daily AI Operations Overview\n\n"
+                        f"- **Total Monitored Loads:** {rep['total_monitored_loads']:,}\n"
+                        f"- **Currently In Transit:** {rep['active_in_transit']:,}\n"
+                        f"- **Active Delayed Loads:** {rep['currently_delayed']:,}\n"
+                        f"- **Fleet On-Time Delivery Rate:** **{rep['delivered_on_time_pct']}%**\n"
+                        f"- **Active Unresolved Alerts:** {rep['active_unresolved_alerts']}\n\n"
+                        f"**Recommendation:** {rep['action_required']}"
+                    )
 
         seen: List[str] = []
         for t in tools_used:
