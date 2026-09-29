@@ -188,6 +188,17 @@ def has_explicit_reference(query: str) -> bool:
     return bool(_LOAD_NUMBER_RE.search(q) or _NUMERIC_REF_RE.search(q))
 
 
+def message_names_entity(db: Session, query: str) -> bool:
+    """True when the message itself resolves to one driver/carrier (or has an
+    explicit reference). Used to stop history context hijacking a question
+    that already names who/what it is about."""
+    if has_explicit_reference(query):
+        return True
+    if resolve_driver(db, query)["status"] == "single":
+        return True
+    return resolve_carrier(db, query)["status"] == "single"
+
+
 def extract_context_entity(db: Session, text: str) -> Optional[str]:
     """Pull one entity reference out of a history turn for follow-up questions.
 

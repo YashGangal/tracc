@@ -471,6 +471,42 @@ def test_agent_greeting_direct_has_no_tools(dispatcher_headers):
     assert "Tracc" in data["final_answer"]
 
 
+def test_chat_new_entity_ignores_stale_session_context(dispatcher_headers):
+    """Regression: a question naming its own driver must never be answered
+    with a load carried over from earlier in the session."""
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    db.add(Driver(name="Context Testdriver", license_number="TEST-CTX-001",
+                  carrier_id=carrier_id, experience_years=4, safety_score=88.0,
+                  status="available"))
+    db.commit()
+    try:
+        number = _seeded_load_number()
+        first = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": f"Where is load {number}?"},
+            headers=dispatcher_headers,
+        )
+        assert first.status_code == 200
+        assert number in first.json()["reply"]
+        session_id = first.json()["session_id"]
+        second = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "How is driver Context Testdriver doing?",
+                  "session_id": session_id},
+            headers=dispatcher_headers,
+        )
+        assert second.status_code == 200
+        reply = second.json()["reply"]
+        assert "Context Testdriver" in reply
+        assert "Status & Risk" not in reply
+    finally:
+        db.query(Driver).filter(Driver.license_number == "TEST-CTX-001").delete()
+        db.commit()
+        db.close()
+
+
 # --- 8. Alerts & Workflow Automations ---
 
 def test_alerts_list_and_workflow_trigger(manager_headers):

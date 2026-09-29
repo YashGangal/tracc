@@ -35,7 +35,7 @@ from app.services.conversation import (
     chitchat_reply,
     classify_intent,
 )
-from app.services.entity_resolution import extract_context_entity, has_explicit_reference
+from app.services.entity_resolution import extract_context_entity, message_names_entity
 from app.services.rag import query_knowledge_base
 from app.services.text_to_sql import execute_text_to_sql
 
@@ -80,10 +80,10 @@ def _remember(key: str, role: str, content: str) -> None:
 def _with_context(db: Session, history: List[Dict[str, str]], message: str) -> str:
     """Append the last discussed entity so pronoun follow-ups resolve.
 
-    Only fires when the message itself names nothing; the appended
-    "(context: …)" hint carries the entity noun the agent branches on.
+    Never fires when the message names its own entity — history context
+    must assist, never override, an explicit new question.
     """
-    if has_explicit_reference(message):
+    if message_names_entity(db, message):
         return message
     for turn in reversed(history):
         entity = extract_context_entity(db, turn["content"])
