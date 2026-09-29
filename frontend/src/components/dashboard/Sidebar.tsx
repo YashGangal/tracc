@@ -15,8 +15,6 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { TraccMark } from "./TraccMark";
-import { DitheredLogo } from "../ui/dithered-logo";
-import { usePrefersReducedMotion } from "../ui/dotmatrix-hooks";
 import { GithubCard } from "../codedvisuals/GithubCard";
 import { LinkedinCard } from "../codedvisuals/LinkedinCard";
 
@@ -61,23 +59,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile,
 }) => {
-  const reduceMotion = usePrefersReducedMotion();
-  // Interactive dithered brand mark tuned for 28px: fine grid so the dots
-  // stay ~1px and the rest state matches the static logo. Same white-tile
-  // artwork in both themes, matching the login brand tile.
-  const brandMark = reduceMotion ? (
-    <TraccMark size={28} />
-  ) : (
-    <DitheredLogo
-      imageSrc="/tracc-mark-login.svg"
-      className="h-7 w-7 overflow-hidden rounded-lg text-[#151515] ring-1 ring-black/10"
-      gridSize={30}
-      scale={0.95}
-      dotScale={1.6}
-      cornerRadius={0.25}
-      accentColor="#2948f5"
-    />
-  );
   const navItems: NavItem[] = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "loads", label: "Loads", icon: Truck },
@@ -126,11 +107,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               title="Expand sidebar"
               aria-label="Expand sidebar"
             >
-              {brandMark}
+              <TraccMark size={28} />
             </button>
           ) : (
             <div className="flex items-center gap-2.5 overflow-hidden">
-              {brandMark}
+              <TraccMark size={28} />
               {(!collapsed || isMobileOpen) && (
                 <div className="flex items-center gap-1.5 overflow-hidden">
                   <span className="font-extrabold text-[17px] tracking-tight text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
