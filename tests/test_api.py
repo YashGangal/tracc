@@ -340,6 +340,19 @@ def test_chat_sql_routing(dispatcher_headers):
     assert data["generated_sql"].strip().upper().startswith("SELECT")
 
 
+def test_chat_sql_includes_table(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "How many loads are delayed?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["columns"]) > 0
+    assert len(data["rows"]) > 0
+    assert len(data["rows"]) <= 25
+
+
 def test_chat_rag_routing(dispatcher_headers):
     resp = client.post(
         "/api/v1/copilot/chat",

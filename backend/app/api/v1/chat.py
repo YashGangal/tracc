@@ -14,7 +14,7 @@ operational path keeps its existing validation, whitelists, and audit trail.
 
 import re
 from collections import deque
-from typing import Deque, Dict, List
+from typing import Any, Deque, Dict, List
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -134,6 +134,8 @@ async def chat(
     citations: List[RAGCitation] = []
     sql = None
     row_count = None
+    columns: List[str] = []
+    rows: List[List[Any]] = []
 
     try:
         if intent != OPERATIONAL:
@@ -165,6 +167,8 @@ async def chat(
                     reply = result.explanation
                     sql = result.generated_sql
                     row_count = result.row_count
+                    columns = result.columns
+                    rows = [list(r) for r in result.rows[:25]]
             else:
                 mode = "agent"
                 contextual = _with_context(db, history, message)
@@ -197,4 +201,6 @@ async def chat(
         citations=citations,
         generated_sql=sql,
         row_count=row_count,
+        columns=columns,
+        rows=rows,
     )

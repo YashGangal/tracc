@@ -322,16 +322,20 @@ export async function deleteDocument(id: string): Promise<{ filename: string; ch
   return apiFetch(`/rag/documents/${id}`, { method: "DELETE" });
 }
 
-export async function copilotAgent(query: string): Promise<any> {
-  return apiFetch("/agent/chat", { method: "POST", body: { query } });
+export async function copilotChat(message: string, sessionId?: string, signal?: AbortSignal): Promise<any> {
+  return apiFetch("/copilot/chat", { method: "POST", body: { message, session_id: sessionId || undefined }, signal });
 }
 
-export async function copilotSql(query: string): Promise<any> {
-  return apiFetch("/copilot/query", { method: "POST", body: { query, mode: "text_to_sql" } });
+export async function copilotAgent(query: string, signal?: AbortSignal): Promise<any> {
+  return apiFetch("/agent/chat", { method: "POST", body: { query }, signal });
 }
 
-export async function ragQuery(query: string): Promise<any> {
-  return apiFetch("/rag/query", { method: "POST", body: { query } });
+export async function copilotSql(query: string, signal?: AbortSignal): Promise<any> {
+  return apiFetch("/copilot/query", { method: "POST", body: { query, mode: "text_to_sql" }, signal });
+}
+
+export async function ragQuery(query: string, signal?: AbortSignal): Promise<any> {
+  return apiFetch("/rag/query", { method: "POST", body: { query }, signal });
 }
 
 export function buildActivityFeed(alerts: AlertItem[], loads: LoadItem[]): ActivityEvent[] {

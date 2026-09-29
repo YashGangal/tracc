@@ -49,9 +49,9 @@ export class ApiError extends Error {
 
 export async function apiFetch(
   path: string,
-  opts: { method?: string; body?: unknown; formData?: FormData; headers?: Record<string, string> } = {}
+  opts: { method?: string; body?: unknown; formData?: FormData; headers?: Record<string, string>; signal?: AbortSignal } = {}
 ): Promise<any> {
-  const { method = "GET", body, formData, headers = {} } = opts;
+  const { method = "GET", body, formData, headers = {}, signal } = opts;
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
   const h: Record<string, string> = { ...authHeaders(), ...headers };
   let payload: BodyInit | undefined;
@@ -63,8 +63,9 @@ export async function apiFetch(
   }
   let res: Response;
   try {
-    res = await fetch(url, { method, headers: h, body: payload });
-  } catch {
+    res = await fetch(url, { method, headers: h, body: payload, signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new ApiError(-1, "Stopped");
     throw new ApiError(0, "Backend unreachable");
   }
   if (res.status === 401) {
@@ -100,6 +101,7 @@ export async function login(email: string, password: string): Promise<any> {
 }
 
 export function friendlyError(e: unknown): string {  if (e instanceof ApiError) {
+    if (e.status === -1) return "Stopped";
     if (e.status === 0) return "Backend offline";
     if (e.status === 403) return "Forbidden — your role cannot do this";
     if (e.status === 404) return "Not found";

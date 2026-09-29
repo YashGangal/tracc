@@ -244,3 +244,5 @@ class ChatResponse(BaseModel):
     citations: List[RAGCitation] = []
     generated_sql: Optional[str] = None
     row_count: Optional[int] = None
+    columns: List[str] = []
+    rows: List[List[Any]] = []
