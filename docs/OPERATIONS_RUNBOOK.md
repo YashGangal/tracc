@@ -6,7 +6,7 @@ This runbook covers safe database initialization, PostgreSQL backup and recovery
 
 ## Environment setup
 
-1. Copy [.env.example](.env.example) to `.env`.
+1. Copy [`../.env.example`](../.env.example) to `.env`.
 2. Replace every placeholder secret with a long, unique value.
 3. Never commit `.env`; it is excluded by `.gitignore`.
 4. For shared environments, provide a PostgreSQL `DATABASE_URL` to the backend and use PostgreSQL as the system of record.
