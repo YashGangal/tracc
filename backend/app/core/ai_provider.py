@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 class AIProvider:
     """
-    Unified AI provider supporting OpenAI, Anthropic, Gemini, Ollama, 
-    and offline heuristic logistics fallback.
+    Unified AI provider supporting OpenAI, Anthropic, Gemini, Ollama,
+    NVIDIA NIM, and offline heuristic logistics fallback.
     """
 
     @staticmethod
@@ -114,6 +114,37 @@ class AIProvider:
                     logger.warning(f"OpenRouter API returned {resp.status_code}: {err_body}; falling back to offline heuristics.")
             except Exception as e:
                 logger.warning(f"OpenRouter generation error: {e}")
+
+        # 3b. Try NVIDIA NIM if selected and a key is available.
+        # OpenAI-compatible chat API: https://integrate.api.nvidia.com/v1
+        if settings.AI_PROVIDER in {"nvidia", "auto"} and settings.NVIDIA_API_KEY:
+            try:
+                url = "https://integrate.api.nvidia.com/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {settings.NVIDIA_API_KEY}"}
+                payload = {
+                    "model": settings.NVIDIA_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                }
+                async with httpx.AsyncClient(timeout=20.0) as client:
+                    resp = await client.post(url, headers=headers, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        content = data["choices"][0]["message"]["content"]
+                        if content and content.strip():
+                            return content
+                        logger.warning("NVIDIA API returned empty content; falling back to offline heuristics.")
+                    try:
+                        err_body = resp.text[:300]
+                    except Exception:
+                        err_body = "<unreadable>"
+                    logger.warning(f"NVIDIA API returned {resp.status_code}: {err_body}; falling back to offline heuristics.")
+            except Exception as e:
+                logger.warning(f"NVIDIA generation error: {e}")
 
         # 4. Fallback: heuristic domain logic for local/demo operation only.
         if settings.MOCK_AI_FALLBACK:

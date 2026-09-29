@@ -1079,3 +1079,100 @@ def test_chat_ambiguous_name_beats_stale_load_context(dispatcher_headers):
         db.query(Driver).filter(Driver.license_number.in_(["TEST-CTXDUP-001", "TEST-CTXDUP-002"])).delete()
         db.commit()
         db.close()
+
+
+# --- NVIDIA NIM provider (mocked HTTP, no network) ---
+
+def _set_nvidia(settings_obj, provider, key, model):
+    old = (settings_obj.AI_PROVIDER, settings_obj.NVIDIA_API_KEY, settings_obj.NVIDIA_MODEL)
+    settings_obj.AI_PROVIDER = provider
+    settings_obj.NVIDIA_API_KEY = key
+    settings_obj.NVIDIA_MODEL = model
+    return old
+
+
+def test_nvidia_provider_parses_openai_compatible_reply(monkeypatch):
+    from app.core import ai_provider as ap
+    from app.core.ai_provider import AIProvider
+    import asyncio
+
+    captured = {}
+
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Hello from NIM"}}]}
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            captured["url"] = url
+            captured["auth"] = (headers or {}).get("Authorization")
+            captured["model"] = (json or {}).get("model")
+            return FakeResp()
+
+    monkeypatch.setattr(ap.httpx, "AsyncClient", FakeClient)
+    old = _set_nvidia(settings, "nvidia", "nvapi-test", "meta/llama-3.1-8b-instruct")
+    try:
+        out = asyncio.run(AIProvider.generate_completion("hi"))
+    finally:
+        settings.AI_PROVIDER, settings.NVIDIA_API_KEY, settings.NVIDIA_MODEL = old
+    assert out == "Hello from NIM"
+    assert captured["url"] == "https://integrate.api.nvidia.com/v1/chat/completions"
+    assert captured["auth"] == "Bearer nvapi-test"
+    assert captured["model"] == "meta/llama-3.1-8b-instruct"
+
+
+def test_nvidia_429_falls_back_to_heuristics(monkeypatch):
+    from app.core import ai_provider as ap
+    from app.core.ai_provider import AIProvider
+    import asyncio
+
+    class FakeResp:
+        status_code = 429
+        text = '{"error": {"message": "Rate limit exceeded"}}'
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            return FakeResp()
+
+    monkeypatch.setattr(ap.httpx, "AsyncClient", FakeClient)
+    old = _set_nvidia(settings, "nvidia", "nvapi-test", "meta/llama-3.1-8b-instruct")
+    try:
+        out = asyncio.run(AIProvider.generate_completion(
+            "How many loads are delayed?",
+            system_prompt="You are an expert AI SQL Engineer. Generate a safe read-only SQL SELECT query.",
+        ))
+    finally:
+        settings.AI_PROVIDER, settings.NVIDIA_API_KEY, settings.NVIDIA_MODEL = old
+    assert "SELECT" in out and "delayed" in out
+
+
+def test_nvidia_without_key_skips_to_fallback():
+    from app.core.ai_provider import AIProvider
+    import asyncio
+
+    old = _set_nvidia(settings, "nvidia", None, "meta/llama-3.1-8b-instruct")
+    try:
+        out = asyncio.run(AIProvider.generate_completion("hi"))
+    finally:
+        settings.AI_PROVIDER, settings.NVIDIA_API_KEY, settings.NVIDIA_MODEL = old
+    assert isinstance(out, str) and len(out) > 0

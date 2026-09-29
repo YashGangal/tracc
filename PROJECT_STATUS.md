@@ -4,6 +4,7 @@
 **Cleanup + git:** 2026-09-29 — dead weight deleted (~350MB), docs → `docs/`, ignore files hardened, first commit `7b3aeb2` (119 files, clean tree).
 **Phase 1 conversational copilot (backend):** chitchat intents + unified `POST /copilot/chat` (intent routing, session memory, persona) + name-based driver/carrier/load resolution replacing silent wrong-entity fallbacks. 58/58 pytest. Frontend chat UI (Phase 2) not started.
 **Phase 2 chat UI:** unified thread on `/copilot/chat` (auto-routing + per-answer mode badges), SQL tables inline, stop/new-chat, mode override chips, auto-scroll, Tracc welcome. `tsc` + build clean.
+**LLM providers:** OpenAI / Gemini / OpenRouter + NVIDIA NIM (`AI_PROVIDER=nvidia`, free trial key from build.nvidia.com), automatic failover across providers, offline heuristic fallback. 79/79 pytest.
 **Overall:** Working local product, now version-controlled. Remaining work is keys, docs rewrite, Docker rebuild + verification.
 
 ## Verified just now

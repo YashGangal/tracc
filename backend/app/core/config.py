@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-2.0-flash"
     OPENROUTER_API_KEY: Optional[str] = None
     OPENROUTER_MODEL: Optional[str] = None
+    NVIDIA_API_KEY: Optional[str] = None
+    NVIDIA_MODEL: str = "meta/llama-3.1-8b-instruct"
     AI_PROVIDER: str = "openai"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
