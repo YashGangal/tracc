@@ -1,0 +1,85 @@
+services:
+  # 1. PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: logistics_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-logistics}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set_POSTGRES_PASSWORD_in_.env}
+      POSTGRES_DB: logistics_copilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-logistics} -d logistics_copilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. FastAPI Backend Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: logistics_backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-logistics}:${POSTGRES_PASSWORD:?Set_POSTGRES_PASSWORD_in_.env}@postgres:5432/logistics_copilot
+      - SECRET_KEY=${SECRET_KEY:?Set_SECRET_KEY_in_.env}
+      - WORKFLOW_API_TOKEN=${WORKFLOW_API_TOKEN:?Set_WORKFLOW_API_TOKEN_in_.env}
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  # 3. React Frontend Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: logistics_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # 4. n8n Workflow Automation Engine
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: logistics_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:?Set_N8N_BASIC_AUTH_USER_in_.env}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:?Set_N8N_BASIC_AUTH_PASSWORD_in_.env}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:?Set_N8N_ENCRYPTION_KEY_in_.env}
+      - WORKFLOW_API_TOKEN=${WORKFLOW_API_TOKEN:?Set_WORKFLOW_API_TOKEN_in_.env}
+      - GENERIC_TIMEZONE=America/New_York
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  postgres_data:
+  n8n_data:

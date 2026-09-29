@@ -1,0 +1,30 @@
+# ── Secrets (never commit) ─────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ───────────────────────────────────────────
+.venv/
+backend/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db
+*.db-journal
+*.sqlite3
+
+# ── Node ─────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# ── Generated / runtime data (regenerable) ───────────
+analytics/exports/
+backend/app/data/uploads/
+
+# ── IDE / OS ─────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

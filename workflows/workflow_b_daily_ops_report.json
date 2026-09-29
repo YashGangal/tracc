@@ -1,0 +1,86 @@
+{
+  "name": "Workflow B - Daily Operations Report Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "node-cron-2",
+      "name": "Cron - 07:00 AM Weekdays (America/New_York)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/analytics/kpis",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Workflow-Token",
+              "value": "={{ $env.WORKFLOW_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "id": "node-http-kpis",
+      "name": "Fetch Live Operations KPIs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/alerts/trigger/daily_report",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Workflow-Token",
+              "value": "={{ $env.WORKFLOW_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "id": "node-http-publish",
+      "name": "Publish Daily Operations Briefing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [720, 300]
+    }
+  ],
+  "connections": {
+    "Cron - 07:00 AM Weekdays (America/New_York)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Live Operations KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Live Operations KPIs": {
+      "main": [
+        [
+          {
+            "node": "Publish Daily Operations Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "name": "Workflow A - Delayed Load Alert & Dispatch Escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "node-cron-1",
+      "name": "Schedule - Every 15 Mins",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id, l.load_number, l.origin_city, l.origin_state, l.destination_city, l.destination_state, l.distance_miles, l.status, c.name as carrier_name, d.name as driver_name FROM loads l LEFT JOIN carriers c ON l.carrier_id = c.id LEFT JOIN drivers d ON l.driver_id = d.id WHERE l.status = 'delayed' ORDER BY l.pickup_datetime DESC LIMIT 10;"
+      },
+      "id": "node-postgres-1",
+      "name": "Query PostgreSQL - Delayed Loads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/copilot/query",
+        "method": "POST",
+        "sendBody": true,
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Workflow-Token",
+              "value": "={{ $env.WORKFLOW_API_TOKEN }}"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "Summarize operational impact and critical next steps for currently delayed dispatches."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-http-ai",
+      "name": "AI Delay Summary Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/alerts/trigger/delayed_load",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Workflow-Token",
+              "value": "={{ $env.WORKFLOW_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "id": "node-http-alert",
+      "name": "Post to In-App Alert Center",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [950, 300]
+    }
+  ],
+  "connections": {
+    "Schedule - Every 15 Mins": {
+      "main": [
+        [
+          {
+            "node": "Query PostgreSQL - Delayed Loads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query PostgreSQL - Delayed Loads": {
+      "main": [
+        [
+          {
+            "node": "AI Delay Summary Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Delay Summary Generator": {
+      "main": [
+        [
+          {
+            "node": "Post to In-App Alert Center",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

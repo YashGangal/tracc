@@ -1,0 +1,44 @@
+{
+  "best_model": "Random Forest",
+  "benchmark": {
+    "Logistic Regression": {
+      "accuracy": 0.9734129137276181,
+      "precision": 1.0,
+      "recall": 0.8321917808219178,
+      "f1": 0.908411214953271,
+      "roc_auc": 0.9451922312604328,
+      "pr_auc": 0.90772612190104
+    },
+    "Random Forest": {
+      "accuracy": 0.9772110689093869,
+      "precision": 1.0,
+      "recall": 0.8561643835616438,
+      "f1": 0.922509225092251,
+      "roc_auc": 0.9402970244561615,
+      "pr_auc": 0.9095794131625277
+    },
+    "XGBoost": {
+      "accuracy": 0.9772110689093869,
+      "precision": 1.0,
+      "recall": 0.8561643835616438,
+      "f1": 0.922509225092251,
+      "roc_auc": 0.9511848299373803,
+      "pr_auc": 0.9142843287801807
+    }
+  },
+  "feature_names": [
+    "distance_miles",
+    "pickup_delay_minutes",
+    "scheduled_transit_hours",
+    "carrier_late_rate",
+    "carrier_fleet_size",
+    "driver_experience",
+    "driver_safety_score",
+    "is_long_haul",
+    "pickup_day_of_week",
+    "rate_per_mile",
+    "type_Dry Van",
+    "type_Flatbed",
+    "type_Reefer"
+  ]
+}

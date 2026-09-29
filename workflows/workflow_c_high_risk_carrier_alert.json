@@ -1,0 +1,55 @@
+{
+  "name": "Workflow C - High-Risk Carrier Health Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "node-interval-3",
+      "name": "Interval - Every 4 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/alerts/trigger/carrier_breach",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Workflow-Token",
+              "value": "={{ $env.WORKFLOW_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "id": "node-http-breach",
+      "name": "Audit Carrier Performance Breaches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Interval - Every 4 Hours": {
+      "main": [
+        [
+          {
+            "node": "Audit Carrier Performance Breaches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
