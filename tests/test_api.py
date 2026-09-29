@@ -616,6 +616,79 @@ def test_chat_sql_injection_stays_safe(dispatcher_headers):
     assert "$2b$" not in data["reply"] and "password_hash" not in data["reply"].lower()
 
 
+def test_chat_bare_license_number_resolves(dispatcher_headers):
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    db.add(Driver(name="License Checkdriver", license_number="CDL-TEST-LIC-9",
+                  carrier_id=carrier_id, experience_years=9, safety_score=91.0,
+                  status="available"))
+    db.commit()
+    try:
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "CDL-TEST-LIC-9"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["mode_used"] == "agent"
+        assert "License Checkdriver" in data["reply"]
+    finally:
+        db.query(Driver).filter(Driver.license_number == "CDL-TEST-LIC-9").delete()
+        db.commit()
+        db.close()
+
+
+def test_chat_bare_mc_number_resolves(dispatcher_headers):
+    from app.db.models import Carrier
+    db = SessionLocal()
+    db.add(Carrier(name="Mcnumber Testcarrier", mc_number="MC-TEST-MC-9",
+                   dot_number="DOT-TEST-MC-9", location="Denver, CO"))
+    db.commit()
+    try:
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "MC-TEST-MC-9"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["mode_used"] == "agent"
+        assert "Mcnumber Testcarrier" in data["reply"]
+    finally:
+        db.query(Carrier).filter(Carrier.mc_number == "MC-TEST-MC-9").delete()
+        db.commit()
+        db.close()
+
+
+def test_clarification_suggests_license_selection(dispatcher_headers):
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    db.add_all([
+        Driver(name="Clarify Dupe", license_number="TEST-CLAR-001",
+               carrier_id=carrier_id, experience_years=1, safety_score=70.0,
+               status="available"),
+        Driver(name="Clarify Dupe", license_number="TEST-CLAR-002",
+               carrier_id=carrier_id, experience_years=2, safety_score=71.0,
+               status="available"),
+    ])
+    db.commit()
+    try:
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "Tell me about driver Clarify Dupe"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        assert "license number" in resp.json()["reply"].lower()
+    finally:
+        db.query(Driver).filter(Driver.license_number.in_(["TEST-CLAR-001", "TEST-CLAR-002"])).delete()
+        db.commit()
+        db.close()
+
+
 def test_chat_carrier_mc_number(dispatcher_headers):
     from app.db.models import Carrier
     db = SessionLocal()

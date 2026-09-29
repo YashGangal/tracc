@@ -616,8 +616,35 @@ class OperationsAgent:
             final_answer = f"### SOP Operational Guidance\n\n{rag_res['sop_answer']}\n\n*Verified against: {', '.join(rag_res['citations'])}*"
 
         else:
-            # Bare-name queries ("Richard Garcia") carry no keyword — try to
-            # resolve a driver/carrier before surrendering to the generic report.
+            # Bare identifiers ("CDL-1000078", "MC-100078", "Richard Garcia")
+            # carry no keyword — resolve IDs first, then names, before
+            # surrendering to the generic report.
+            lic_id = resolve_driver_license(self.db, query)
+            if lic_id is not None:
+                traces.append(AgentActionTrace(
+                    step=step_counter,
+                    thought="Bare license number matched a driver record.",
+                    action="resolve_entity",
+                    action_input={"entity": "driver_license"},
+                    observation=f"Unique match: driver ID {lic_id}."
+                ))
+                return self._finish(
+                    query, traces, tools_used,
+                    self._driver_profile(lic_id, traces, tools_used, step_counter)
+                )
+            mc_id = resolve_carrier_mc(self.db, query)
+            if mc_id is not None:
+                traces.append(AgentActionTrace(
+                    step=step_counter,
+                    thought="Bare MC number matched a carrier record.",
+                    action="resolve_entity",
+                    action_input={"entity": "carrier_mc"},
+                    observation=f"Unique match: carrier ID {mc_id}."
+                ))
+                return self._finish(
+                    query, traces, tools_used,
+                    self._carrier_profile(mc_id, traces, tools_used, step_counter)
+                )
             res_d = resolve_driver(self.db, query)
             if res_d["status"] == "single":
                 traces.append(AgentActionTrace(

@@ -29,8 +29,8 @@ STOPWORDS = {
 }
 
 _LOAD_NUMBER_RE = re.compile(r"\b(L\d+)\b", re.IGNORECASE)
-_MC_RE = re.compile(r"\bMC[-\s]?(\d+)\b", re.IGNORECASE)
-_CDL_RE = re.compile(r"\bCDL[-\s]?(\d+)\b", re.IGNORECASE)
+_MC_RE = re.compile(r"\bMC[-\s]?([A-Za-z0-9][A-Za-z0-9-]*)\b", re.IGNORECASE)
+_CDL_RE = re.compile(r"\bCDL[-\s]?([A-Za-z0-9][A-Za-z0-9-]*)\b", re.IGNORECASE)
 _NUMERIC_REF_RE = re.compile(
     r"\b(?:driver|carrier|load|truck|cdl|mc)\s*(?:id|#|no\.?|number)?\s*[:\-]?\s*(\d+)\b",
     re.IGNORECASE,
@@ -255,7 +255,10 @@ def format_clarification(kind: str, res: Dict[str, Any]) -> str:
     ]
     for mit in res["matches"]:
         lines.append(f"- **{mit['label']}** ({mit['detail']})")
-    lines.append("Reply with the full name and I'll pull the details.")
+    if kind == "driver":
+        lines.append("Reply with their license number (e.g. CDL-1000078) and I'll pull the details.")
+    else:
+        lines.append("Reply with the MC number or full name and I'll pull the details.")
     return "\n".join(lines)
 
 
