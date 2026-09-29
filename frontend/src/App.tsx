@@ -381,8 +381,17 @@ export default function App() {
   };
 
   const handleTriggerCopilotQuery = (query: string) => {
-    setCopilotInitialQuery(query);
-    setCurrentSection("copilot");
+    // When already on the copilot thread, the view stays mounted: clear to
+    // "" first so a repeat of the same string is still observable downstream.
+    setCurrentSection((prev) => {
+      if (prev === "copilot") {
+        setCopilotInitialQuery("");
+        window.setTimeout(() => setCopilotInitialQuery(query), 0);
+        return prev;
+      }
+      setCopilotInitialQuery(query);
+      return "copilot";
+    });
   };
 
   const handleSelectCarrier = (_carrier: CarrierItem) => {
@@ -614,7 +623,7 @@ export default function App() {
               {currentSection === "copilot" && (
                 <AICopilotView
                   initialQuery={copilotInitialQuery}
-                  onSelectLoad={(ld) => openLoad(ld)}
+                  live={live}
                 />
               )}
 
