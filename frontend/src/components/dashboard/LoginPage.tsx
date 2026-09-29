@@ -158,6 +158,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   gridSize={240}
                   scale={0.94}
                   dotScale={1}
+                  accentColor="#2948f5"
                 />
               )}
             </div>

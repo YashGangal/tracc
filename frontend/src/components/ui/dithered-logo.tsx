@@ -10,6 +10,8 @@ import {
 interface GrayscaleResult {
   grayscale: Uint8Array;
   alpha: Uint8Array;
+  // Crisp (pre-blur) accent mask: 1 where the pixel is strongly blue-dominant.
+  accent: Uint8Array;
   width: number;
   height: number;
 }
@@ -28,6 +30,7 @@ interface ParticleSystem {
   offsetY: Float32Array;
   brightness: Float32Array;
   tint: Float32Array;
+  accent: Uint8Array;
   size: number;
 }
 
@@ -114,6 +117,7 @@ const toGrayscaleGrid = (
   const pixels = ctx.getImageData(0, 0, outW, outH).data;
   const grayscale = new Uint8Array(outW * outH);
   const alpha = new Uint8Array(outW * outH);
+  const accent = new Uint8Array(outW * outH);
   const cFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
   for (let y = 0; y < outH; y++) {
@@ -121,6 +125,11 @@ const toGrayscaleGrid = (
       const idx = (y * outW + x) * 4;
       const blurAlpha = pixels[idx + 3]! / 255;
       alpha[y * outW + x] = alphaData[idx + 3]!;
+      // Brand-blue detection on the crisp (unblurred) sample so the dot
+      // keeps tight edges even though dithering uses the blurred luma.
+      const crispR = alphaData[idx]!;
+      const crispB = alphaData[idx + 2]!;
+      accent[y * outW + x] = crispB > 150 && crispB - crispR > 80 ? 1 : 0;
 
       let luma =
         blurAlpha > 0.01
@@ -139,7 +148,7 @@ const toGrayscaleGrid = (
     }
   }
 
-  return { grayscale, alpha, width: outW, height: outH };
+  return { grayscale, alpha, accent, width: outW, height: outH };
 };
 
 const errorDiffusionDither = (
@@ -255,6 +264,7 @@ const applyMaskInversion = (
 
 const initParticles = (
   points: Float32Array,
+  accentFlags: Uint8Array,
   scaleFactor: number,
   dotScale: number,
   originX: number,
@@ -267,12 +277,14 @@ const initParticles = (
   const offsetY = new Float32Array(count);
   const brightness = new Float32Array(count);
   const tint = new Float32Array(count);
+  const accent = new Uint8Array(count);
 
   for (let i = 0; i < count; i++) {
     baseX[i] = originX + points[i * 2]! * scaleFactor;
     baseY[i] = originY + points[i * 2 + 1]! * scaleFactor;
     brightness[i] = 1;
     tint[i] = 1;
+    accent[i] = accentFlags[i]!;
   }
 
   return {
@@ -283,6 +295,7 @@ const initParticles = (
     offsetY,
     brightness,
     tint,
+    accent,
     size: scaleFactor * dotScale,
   };
 };
@@ -352,6 +365,7 @@ const drawParticles = (
   ctx: CanvasRenderingContext2D,
   sys: ParticleSystem,
   particleColor: string,
+  accentColor: string,
   canvasW: number,
   canvasH: number,
   dpr: number,
@@ -376,14 +390,28 @@ const drawParticles = (
     const ids = buckets[z]!;
     if (ids.length === 0) continue;
     const alpha = Math.floor(z / 6) / 20;
-    ctx.fillStyle = particleColor;
     ctx.globalAlpha = alpha;
 
+    // Base ink pass, then the accent pass. When no accent color is set the
+    // second pass is skipped and rendering is byte-for-byte the original.
+    ctx.fillStyle = particleColor;
     for (let j = 0; j < ids.length; j++) {
       const i = ids[j]!;
+      if (sys.accent[i]! !== 0) continue;
       const rx = (sys.baseX[i]! + sys.offsetX[i]!) * dpr;
       const ry = (sys.baseY[i]! + sys.offsetY[i]!) * dpr;
       ctx.fillRect(rx - pad, ry - pad, size + padSize, size + padSize);
+    }
+
+    if (accentColor !== particleColor) {
+      ctx.fillStyle = accentColor;
+      for (let j = 0; j < ids.length; j++) {
+        const i = ids[j]!;
+        if (sys.accent[i]! === 0) continue;
+        const rx = (sys.baseX[i]! + sys.offsetX[i]!) * dpr;
+        const ry = (sys.baseY[i]! + sys.offsetY[i]!) * dpr;
+        ctx.fillRect(rx - pad, ry - pad, size + padSize, size + padSize);
+      }
     }
   }
 
@@ -404,6 +432,9 @@ export interface DitheredLogoProps {
   diffusionStrength?: number;
   serpentine?: boolean;
   particleColor?: string;
+  // Second particle color for blue-dominant source pixels (brand dot).
+  // Defaults to particleColor, which preserves the original single-ink look.
+  accentColor?: string;
   style?: CSSProperties;
   className?: string;
 }
@@ -422,6 +453,7 @@ export function DitheredLogo({
   diffusionStrength = DEFAULTS.diffusionStrength,
   serpentine = DEFAULTS.serpentine,
   particleColor = "currentColor",
+  accentColor = particleColor,
   style,
   className,
 }: DitheredLogoProps) {
@@ -433,6 +465,9 @@ export function DitheredLogo({
   const runningRef = useRef(false);
   const prevConfigRef = useRef("");
   const [isMobile, setIsMobile] = useState(false);
+  // Read at draw time so changing the accent never forces a particle rebuild.
+  const accentColorRef = useRef(accentColor);
+  accentColorRef.current = accentColor;
 
   const resolveParticleColor = useCallback(() => {
     const canvas = canvasRef.current;
@@ -483,6 +518,7 @@ export function DitheredLogo({
         ctx,
         sys,
         resolveParticleColor(),
+        accentColorRef.current,
         rect.width,
         rect.height,
         dpr,
@@ -535,8 +571,20 @@ export function DitheredLogo({
         const originY = Math.round((rect.height - gridH * scaleFactor) / 2);
         const responsiveDotScale = isMobile ? dotScale * 0.8 : dotScale;
 
+        // Map the crisp accent mask onto the final (possibly inverted)
+        // particle positions so the blue dot survives dithering.
+        const accentFlags = new Uint8Array(positions.length / 2);
+        for (let i = 0; i < accentFlags.length; i++) {
+          const gx = Math.round(positions[i * 2]!);
+          const gy = Math.round(positions[i * 2 + 1]!);
+          if (gx >= 0 && gx < gridW && gy >= 0 && gy < gridH) {
+            accentFlags[i] = processed.accent[gy * gridW + gx]!;
+          }
+        }
+
         systemRef.current = initParticles(
           positions,
+          accentFlags,
           scaleFactor,
           responsiveDotScale,
           originX,
@@ -624,6 +672,7 @@ export function DitheredLogo({
           ctx,
           sys,
           resolveParticleColor(),
+          accentColorRef.current,
           rect.width,
           rect.height,
           dpr,
