@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.session import get_db
 from app.db.models import Carrier, Load
+from app.core.business_rules import AVG_TRUCK_MPH
+from app.services.stats import carrier_weekly_otd
 from app.schemas.logistics import CarrierOut, CarrierPerformance
 from app.api.v1.auth import get_current_user
 
@@ -62,6 +64,7 @@ def get_carrier_performance(id: int, db: Session = Depends(get_db)):
         on_time_rate=on_time,
         total_revenue=round(float(total_rev), 2),
         average_rate_per_mile=round(float(avg_rpm), 2),
-        # Planning estimate from avg dispatched miles at 48 mph fleet average.
-        average_transit_hours=round(float(avg_miles) / 48.0, 1)
+        # Planning estimate from avg dispatched miles at fleet-average speed.
+        average_transit_hours=round(float(avg_miles) / AVG_TRUCK_MPH, 1),
+        weekly_on_time=carrier_weekly_otd(db, carrier.id, on_time)
     )

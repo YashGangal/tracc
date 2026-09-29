@@ -14,6 +14,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from app.db.session import SessionLocal, engine
 from app.db.models import Load, Carrier, Driver, Prediction
+from app.core.business_rules import RISK_HIGH_THRESHOLD, RISK_MEDIUM_THRESHOLD
 from app.schemas.logistics import PredictionOut, SHAPFactor
 
 ARTIFACTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "artifacts"))
@@ -125,9 +126,9 @@ def predict_for_load(load_id: int, db: Optional[Session] = None) -> PredictionOu
         late_prob = float(probs[1])
 
         # Risk categorization
-        if late_prob >= 0.65:
+        if late_prob >= RISK_HIGH_THRESHOLD:
             risk_level = "HIGH"
-        elif late_prob >= 0.30:
+        elif late_prob >= RISK_MEDIUM_THRESHOLD:
             risk_level = "MEDIUM"
         else:
             risk_level = "LOW"

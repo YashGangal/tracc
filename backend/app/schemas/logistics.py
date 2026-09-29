@@ -63,6 +63,7 @@ class CarrierPerformance(BaseModel):
     total_revenue: float
     average_rate_per_mile: float
     average_transit_hours: float = 0.0
+    weekly_on_time: List[float] = []
 
 
 # Driver Schemas

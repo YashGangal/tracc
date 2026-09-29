@@ -14,6 +14,7 @@ from app.db.models import (
     AuditLog, Document, KnowledgeChunk
 )
 from app.core.security import get_password_hash
+from app.core.business_rules import AVG_TRUCK_MPH
 
 CITIES_STATES = [
     ("Chicago", "IL"), ("Dallas", "TX"), ("Atlanta", "GA"), ("Los Angeles", "CA"),
@@ -241,7 +242,7 @@ def generate_seed_data(num_loads=10000, num_carriers=500, num_drivers=2000, num_
         dest_city, dest_state = random.choice([c for c in CITIES_STATES if c[0] != orig_city])
 
         dist = round(random.uniform(180, 2200), 1)
-        transit_hours = dist / 48.0  # avg 48 mph truck transit
+        transit_hours = dist / AVG_TRUCK_MPH  # synthetic fleet-average transit
         rate_pm = round(random.uniform(2.10, 3.85), 2)
         revenue = round(dist * rate_pm, 2)
 

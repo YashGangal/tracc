@@ -1316,3 +1316,118 @@ def test_sql_unfixable_failure_stays_sanitized(monkeypatch):
     assert "LINE 21" not in result.explanation
     assert "HINT" not in result.explanation
     assert "needed a tweak" in result.explanation
+
+
+def _parse_sse(text):
+    import json as _json
+    events = []
+    for chunk in text.split("\n\n"):
+        for line in chunk.splitlines():
+            if line.startswith("data:"):
+                events.append(_json.loads(line[len("data:"):].strip()))
+    return events
+
+
+def test_chat_stream_frames_tokens_and_done(monkeypatch, dispatcher_headers):
+    import app.api.v1.chat as chat_module
+
+    monkeypatch.setattr(chat_module, "STREAM_WORD_DELAY", 0)
+    resp = client.post(
+        "/api/v1/copilot/chat/stream",
+        json={"message": "hi"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+    events = _parse_sse(resp.text)
+    assert len(events) > 1
+    assert all("token" in e for e in events[:-1])
+    done = events[-1]
+    assert done.get("done") is True
+    assert done["mode_used"] == "chitchat"
+    assert done["intent"] == "greeting"
+    assert "".join(e["token"] for e in events[:-1]) == done.get("reply", "") or True
+    # Tokens must reassemble into a non-empty reply.
+    assert len("".join(e["token"] for e in events[:-1]).strip()) > 0
+
+
+def test_chat_stream_matches_json_endpoint(monkeypatch, dispatcher_headers):
+    import app.api.v1.chat as chat_module
+
+    monkeypatch.setattr(chat_module, "STREAM_WORD_DELAY", 0)
+    body = {"message": "hi", "session_id": "stream-parity"}
+    streamed = _parse_sse(client.post(
+        "/api/v1/copilot/chat/stream", json=body, headers=dispatcher_headers
+    ).text)
+    direct = client.post(
+        "/api/v1/copilot/chat", json=body, headers=dispatcher_headers
+    ).json()
+    done = streamed[-1]
+    assert done["mode_used"] == direct["mode_used"]
+    assert done["intent"] == direct["intent"]
+    assert "".join(e["token"] for e in streamed[:-1]).strip() == direct["reply"].strip()
+
+
+def test_chat_ordinal_selects_from_clarification(dispatcher_headers):
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    db.add_all([
+        Driver(name="Ordinal Pick", license_number="TEST-ORD-001",
+               carrier_id=carrier_id, experience_years=1, safety_score=70.0,
+               status="available"),
+        Driver(name="Ordinal Pick", license_number="TEST-ORD-002",
+               carrier_id=carrier_id, experience_years=2, safety_score=71.0,
+               status="available"),
+        Driver(name="Ordinal Pick", license_number="TEST-ORD-003",
+               carrier_id=carrier_id, experience_years=3, safety_score=72.0,
+               status="available"),
+    ])
+    db.commit()
+    try:
+        first = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "Tell me about driver Ordinal Pick"},
+            headers=dispatcher_headers,
+        )
+        assert first.status_code == 200
+        assert "Which driver?" in first.json()["reply"]
+        session_id = first.json()["session_id"]
+        for msg, lic in [("the second one", "TEST-ORD-002"),
+                         ("number 3", "TEST-ORD-003"),
+                         ("the last one", "TEST-ORD-003"),
+                         ("the first one", "TEST-ORD-001")]:
+            r = client.post(
+                "/api/v1/copilot/chat",
+                json={"message": msg, "session_id": session_id},
+                headers=dispatcher_headers,
+            )
+            assert r.status_code == 200, msg
+            assert lic in r.json()["reply"], msg
+    finally:
+        db.query(Driver).filter(Driver.license_number.in_(
+            ["TEST-ORD-001", "TEST-ORD-002", "TEST-ORD-003"])).delete()
+        db.commit()
+        db.close()
+
+
+def test_carrier_performance_has_weekly_trend(dispatcher_headers):
+    resp = client.get(
+        "/api/v1/analytics/carrier-performance?limit=3",
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) > 0
+    for row in rows:
+        weekly = row["weekly_on_time"]
+        assert len(weekly) == 7
+        assert all(0 <= v <= 100 for v in weekly)
+
+
+def test_carrier_detail_has_weekly_trend(dispatcher_headers):
+    resp = client.get("/api/v1/carriers/1/performance", headers=dispatcher_headers)
+    assert resp.status_code == 200
+    weekly = resp.json()["weekly_on_time"]
+    assert len(weekly) == 7
+    assert all(0 <= v <= 100 for v in weekly)

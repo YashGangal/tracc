@@ -7,6 +7,7 @@ from sqlalchemy import func, case
 from app.db.session import SessionLocal
 from app.db.models import Load, Carrier, Alert
 from app.core.ai_provider import AIProvider
+from app.core.business_rules import ROLLING_WINDOW_DAYS, CARRIER_BREACH_LATE_RATE_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ class AutomationRunner:
 
         try:
             reference_time = db.query(func.max(Load.pickup_datetime)).scalar() or datetime.utcnow()
-            window_start = reference_time - timedelta(days=14)
+            window_start = reference_time - timedelta(days=ROLLING_WINDOW_DAYS)
             # Single aggregate query per status instead of 2 counts per carrier.
             rows = (
                 db.query(
@@ -185,11 +186,11 @@ class AutomationRunner:
                 delays = row.delays or 0
                 late_rate = round((delays / total * 100), 1) if total > 0 else 0.0
 
-                if late_rate >= 15.0:
+                if late_rate >= CARRIER_BREACH_LATE_RATE_PCT:
                     alert_title = f"Carrier Performance Breach: {row.name}"
                     alert_msg = (
                         f"Carrier {row.name} (MC: {row.mc_number}) has breached the allowable delay threshold "
-                        f"with a {late_rate}% late rate over {total} completed loads in the rolling 14-day window. "
+                        f"with a {late_rate}% late rate over {total} completed loads in the rolling {ROLLING_WINDOW_DAYS}-day window. "
                         f"Carrier rating: {row.rating}/5.0. "
                         f"Recommended: Review for probation status."
                     )

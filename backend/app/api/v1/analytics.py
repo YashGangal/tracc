@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from app.db.session import get_db
 from app.db.models import Load, Carrier, Driver, User
+from app.core.business_rules import AVG_TRUCK_MPH
+from app.services.stats import carrier_weekly_otd
 from app.schemas.logistics import SummaryKPIs
 from app.api.v1.auth import get_current_user, get_current_user_or_workflow_token
 
@@ -85,8 +87,9 @@ def get_top_carrier_performance(
             "delayed_loads": delayed,
             "on_time_rate": on_time,
             "total_revenue": round(float(row.total_revenue or 0.0), 2),
-            # Planning estimate from avg dispatched miles at 48 mph fleet average.
-            "average_transit_hours": round(float(row.avg_miles or 0.0) / 48.0, 1)
+            # Planning estimate from avg dispatched miles at fleet-average speed.
+            "average_transit_hours": round(float(row.avg_miles or 0.0) / AVG_TRUCK_MPH, 1),
+            "weekly_on_time": carrier_weekly_otd(db, row.id, on_time),
         })
     return formatted
 

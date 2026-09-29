@@ -102,6 +102,9 @@ export function normCarrier(c: any, perf?: any): CarrierItem {
   const delayed = p.delayed_loads ?? 0;
   const denom = delivered + delayed;
   const onTime = p.on_time_rate ?? (denom > 0 ? (delivered / denom) * 100 : 100);
+  const weekly = Array.isArray(p.weekly_on_time) && p.weekly_on_time.length === 7
+    ? p.weekly_on_time.map((v: any) => Math.round(Number(v) * 10) / 10)
+    : Array(7).fill(Math.round(onTime * 10) / 10);
   return {
     id: `C-${c.id}`,
     name: c.name,
@@ -115,7 +118,7 @@ export function normCarrier(c: any, perf?: any): CarrierItem {
     rating: c.rating ?? 0,
     status: c.status === "active" ? "Active" : c.status === "suspended" ? "Suspended" : "Under Review",
     trend: "neutral",
-    sparklineData: Array(7).fill(Math.round(onTime * 10) / 10),
+    sparklineData: weekly,
   };
 }
 
@@ -265,6 +268,9 @@ export async function fetchTopCarriers(limit = 10): Promise<any[]> {
 export function normTopCarrier(r: any): CarrierItem {
   const total = r.total_loads ?? 0;
   const onTime = r.on_time_rate ?? 100;
+  const weekly = Array.isArray(r.weekly_on_time) && r.weekly_on_time.length === 7
+    ? r.weekly_on_time.map((v: any) => Math.round(Number(v) * 10) / 10)
+    : Array(7).fill(Math.round(onTime * 10) / 10);
   return {
     id: `C-${r.carrier_id}`,
     name: r.carrier_name,
@@ -278,7 +284,7 @@ export function normTopCarrier(r: any): CarrierItem {
     rating: r.rating ?? 0,
     status: "Active",
     trend: "neutral",
-    sparklineData: Array(7).fill(Math.round(onTime * 10) / 10),
+    sparklineData: weekly,
   };
 }
 

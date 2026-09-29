@@ -71,7 +71,7 @@ def _exact_matches(model, column, candidate: str, db: Session) -> list:
     return (
         db.query(model)
         .filter(func.lower(column) == candidate.lower())
-        .limit(2)
+        .limit(6)
         .all()
     )
 
@@ -263,7 +263,7 @@ def format_clarification(kind: str, res: Dict[str, Any]) -> str:
     for mit in res["matches"]:
         lines.append(f"- **{mit['label']}** ({mit['detail']})")
     if kind == "driver":
-        lines.append("Reply with their license number (e.g. CDL-1000078) and I'll pull the details.")
+        lines.append("Reply with the license number shown for the right person and I'll pull the details.")
     else:
         lines.append("Reply with the MC number or full name and I'll pull the details.")
     return "\n".join(lines)
