@@ -29,6 +29,8 @@ STOPWORDS = {
 }
 
 _LOAD_NUMBER_RE = re.compile(r"\b(L\d+)\b", re.IGNORECASE)
+_MC_RE = re.compile(r"\bMC[-\s]?(\d+)\b", re.IGNORECASE)
+_CDL_RE = re.compile(r"\bCDL[-\s]?(\d+)\b", re.IGNORECASE)
 _NUMERIC_REF_RE = re.compile(
     r"\b(?:driver|carrier|load|truck|cdl|mc)\s*(?:id|#|no\.?|number)?\s*[:\-]?\s*(\d+)\b",
     re.IGNORECASE,
@@ -180,6 +182,29 @@ def resolve_load(db: Session, query: str) -> Dict[str, Any]:
             }
         return {"status": "none", "matches": [], "candidate": m2.group(1), "suggestions": []}
     return {"status": "none", "matches": [], "candidate": "", "suggestions": []}
+
+
+def resolve_carrier_mc(db: Session, query: str) -> Optional[int]:
+    """Exact MC-number match (MC-100005). Numeric-looking MCs must never be
+    mistaken for database IDs."""
+    m = _MC_RE.search(query or "")
+    if not m:
+        return None
+    row = db.query(Carrier.id).filter(
+        Carrier.mc_number.in_([f"MC-{m.group(1)}", f"MC{m.group(1)}"])
+    ).first()
+    return row[0] if row else None
+
+
+def resolve_driver_license(db: Session, query: str) -> Optional[int]:
+    """Exact license-number match (CDL-1000000). Same ID-confusion guard."""
+    m = _CDL_RE.search(query or "")
+    if not m:
+        return None
+    row = db.query(Driver.id).filter(
+        Driver.license_number.in_([f"CDL-{m.group(1)}", f"CDL{m.group(1)}"])
+    ).first()
+    return row[0] if row else None
 
 
 def has_explicit_reference(query: str) -> bool:

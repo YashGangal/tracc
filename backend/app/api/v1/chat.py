@@ -12,6 +12,7 @@ Guardrails are unchanged: chitchat cannot reach SQL/tools, and every
 operational path keeps its existing validation, whitelists, and audit trail.
 """
 
+import re
 from collections import deque
 from typing import Deque, Dict, List
 from uuid import uuid4
@@ -47,6 +48,28 @@ PERSONA = (
     "and ground operational claims in system data, never guesses."
 )
 
+# A knowledge-seeking question with no data/entity signals at all
+# ("When is the holiday party?") deserves a grounded RAG attempt — and its
+# honest refusal — instead of an unrelated fleet report.
+_INTERROGATIVE_RE = re.compile(
+    r"^(what|when|where|why|how|is|are|can|could|do|does|did|will|would|should|which|who|whom)\b",
+    re.IGNORECASE,
+)
+_NO_SIGNAL_RE = re.compile(
+    r"\b(loads?|carriers?|drivers?|trucks?|shipments?|deliver\w*|delay\w*|"
+    r"late|risk\w*|revenue|kpis?|alerts?|sop|procedures?|protocols?|"
+    r"detention|reefer|hos|compliance|invoices?|routes?|lanes?|dispatch\w*|"
+    r"fleet|on-?time|otd|predict\w*|sql|reports?|dashboard|L\d+)\b",
+    re.IGNORECASE,
+)
+_PRONOUN_PERSON_RE = re.compile(
+    r"\b(he|him|his|she|her|they|them|their)\b.*\b(score|safety|status|doing|"
+    r"performance|license|experience|duty|late|rate|load|loads|carrier|driver)\b"
+    r"|\b(score|safety|status|doing|performance|license|experience|duty)\b.*"
+    r"\b(he|him|his|she|her|they|them|their)\b",
+    re.IGNORECASE,
+)
+
 # Procedure-flavored questions go to RAG first (intent dominates); data
 # questions go to SQL; everything else falls through to the agent.
 RAG_TRIGGERS = [
@@ -58,6 +81,7 @@ SQL_TRIGGERS = [
     "how many", "how much", "count", "total", "average", "avg ",
     "list", "show me", "show all", "top ", "worst", "best", "which",
     "revenue", "otd", "on-time", "on time", "rate", "percent", "compare",
+    "select",
 ]
 
 _MAX_TURNS = 10
@@ -117,7 +141,11 @@ async def chat(
             reply = chitchat_reply(intent, current_user.full_name)
         else:
             q = message.lower()
-            if any(t in q for t in RAG_TRIGGERS):
+            if any(t in q for t in RAG_TRIGGERS) or (
+                _INTERROGATIVE_RE.match(message.strip())
+                and not _NO_SIGNAL_RE.search(message)
+                and not _PRONOUN_PERSON_RE.search(message)
+            ):
                 mode = "rag"
                 result = await query_knowledge_base(message, db=db)
                 reply = result.answer

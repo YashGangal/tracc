@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     # Service credential used only by the n8n workflow runner.
     WORKFLOW_API_TOKEN: Optional[str] = None
 
+    # API rate limiting. Disable only in automated tests, never in deployments.
+    RATE_LIMIT_ENABLED: bool = True
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
 

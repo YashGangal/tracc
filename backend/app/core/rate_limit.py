@@ -11,6 +11,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from app.core.config import settings
+
 # path prefix -> (max requests, window seconds)
 LIMITED_PREFIXES: Dict[str, Tuple[int, int]] = {
     "/api/v1/copilot": (30, 60),
@@ -30,6 +32,8 @@ def _client_ip(request: Request) -> str:
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if not settings.RATE_LIMIT_ENABLED:
+            return await call_next(request)
         path = request.url.path
         rule = next((v for prefix, v in LIMITED_PREFIXES.items() if path.startswith(prefix)), None)
         if rule is None:

@@ -35,44 +35,52 @@ _OPERATIONAL_RE = re.compile(
 # Leading patterns are intentionally unanchored at the end: the operational
 # check above runs first, so "thanks, now show delayed loads" still routes
 # to data. \b guards ("thanksgiving", "history", "oklahoma") stay intact.
+# Order matters: IDENTITY/HELP beat GREETING ("hi, who are you?" asks identity).
 _PATTERNS = [
-    (GREETING, [
-        r"^(hi|hello|hey|yo|hiya|howdy|sup)\b",
-        r"^he+y+\b",
-        r"^hi+\b",
-        r"^good\s?(morning|afternoon|evening|day)\b",
-        r"^(hi|hello|hey)\s+(there|tracc)\b",
-    ]),
-    (FAREWELL, [
-        r"^(bye|goodbye|good\s?night|see\s?you|cya)\b",
-        r"^have\s?a\s?good\s?(day|night|one)\b",
-    ]),
-    (THANKS, [
-        r"^(thanks?|thank\s?you|thx)\b",
-        r"^much\s?appreciated\b",
-        r"^appreciated\b",
-    ]),
-    (HELP, [
-        r"\bwhat\s+can\s+you\s+do\b",
-        r"\bhow\s+do\s+i\s+use\b",
-        r"\bhelp\b",
-        r"\bcapabilit",
-        r"\bgetting\s+started\b",
-        r"\bwhat\s+is\s+this\b",
-    ]),
     (IDENTITY, [
         r"\bwho\s+are\s+you\b",
+        r"\bwho\s+r\s+u\b",
         r"\b(your|ur)\s+name\b",
         r"\bwhat\s+are\s+you\b",
         r"\babout\s+yourself\b",
         r"\btell\s+me\s+about\s+yourself\b",
     ]),
+    (HELP, [
+        r"\bwhat\s+can\s+(you|u)\s+do\b",
+        r"\bhow\s+do\s+i\s+use\b",
+        r"\bhelp\b",
+        r"^commands?\b",
+        r"\bcapabilit",
+        r"\bgetting\s+started\b",
+        r"\bwhat\s+is\s+this\b",
+    ]),
+    (THANKS, [
+        r"^(thanks?|thank\s?you|thx|ty|thanku)\b",
+        r"^much\s?appreciated\b",
+        r"^appreciated\b",
+    ]),
+    (FAREWELL, [
+        r"^(bye+|goodbye|good\s?bye|good\s?night|see\s?you|cya|later|see\s?ya)\b",
+        r"^have\s?a\s?good\s?(day|night|one)\b",
+    ]),
     (STATUS, [
         r"\bhow\s+are\s+you\b",
+        r"\bhow\s+r\s+u\b",
         r"\bhow('s| is)\s+it\s+going\b",
+        r"\bare\s+you\s+there\b",
+        r"^you\s+there\b",
     ]),
     (ACK, [
-        r"^(ok|okay|k|cool|great|nice|got\s?it|understood|sounds\s?good|perfect)\b",
+        r"^(ok|okay|k|cool|great|nice|awesome|got\s?it|understood|sounds\s?good|perfect)\b",
+    ]),
+    (GREETING, [
+        r"^(hi|hello|hey|yo|hiya|howdy|sup|greetings)\b",
+        r"^he+y+\b",
+        r"^hi+\b",
+        r"^(hola|bonjour|namaste|namaskar)\b",
+        r"^good\s?(morning|afternoon|evening|day)\b",
+        r"^(morning|afternoon|evening)\b",
+        r"^(hi|hello|hey)\s+(there|tracc)\b",
     ]),
 ]
 

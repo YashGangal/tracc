@@ -12,8 +12,10 @@ from app.services.rag import query_knowledge_base
 from app.services.text_to_sql import execute_text_to_sql
 from app.services.conversation import classify_intent, chitchat_reply, OPERATIONAL
 from app.services.entity_resolution import (
-    resolve_driver,
     resolve_carrier,
+    resolve_carrier_mc,
+    resolve_driver,
+    resolve_driver_license,
     resolve_load,
     format_clarification,
     format_not_found,
@@ -460,11 +462,15 @@ class OperationsAgent:
                 )
 
         elif "carrier" in q_lower:
-            # Carrier inspection workflow — honor explicit IDs, then names.
+            # Carrier inspection workflow — MC numbers first (never confuse
+            # them with database IDs), then explicit IDs, then names.
             # Never silently answer about an arbitrary carrier.
             fallback_note = ""
+            mc_id = resolve_carrier_mc(self.db, query)
             requested_id = _extract_entity_id(query, ["carrier", "mc"])
-            if requested_id is not None:
+            if mc_id is not None:
+                carrier_id = mc_id
+            elif requested_id is not None:
                 carrier_id = requested_id
             else:
                 res = resolve_carrier(self.db, query)
@@ -528,11 +534,15 @@ class OperationsAgent:
             )
 
         elif "driver" in q_lower:
-            # Driver inspection — honor explicit IDs, then names.
+            # Driver inspection — license numbers first (never confuse them
+            # with database IDs), then explicit IDs, then names.
             # Never silently answer about an arbitrary driver.
             fallback_note = ""
+            lic_id = resolve_driver_license(self.db, query)
             requested_id = _extract_entity_id(query, ["driver", "cdl"])
-            if requested_id is not None:
+            if lic_id is not None:
+                driver_id = lic_id
+            elif requested_id is not None:
                 driver_id = requested_id
             else:
                 res = resolve_driver(self.db, query)

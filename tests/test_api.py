@@ -16,6 +16,11 @@ from app.ml.predictor import predict_for_load
 init_db()
 client = TestClient(app)
 
+# The API rate limiter is intentionally disabled for the suite — burst
+# traffic here is cars on a test track, not abuse. Production keeps it on,
+# proven by test_rate_limiter_blocks_bursts below.
+settings.RATE_LIMIT_ENABLED = False
+
 
 @pytest.fixture
 def dispatcher_headers():
@@ -288,13 +293,20 @@ def test_chat_greeting_needs_no_tools(dispatcher_headers):
 def test_chat_chitchat_intents(dispatcher_headers):
     cases = {
         "what can you do?": "help",
+        "what can u do": "help",
+        "commands": "help",
         "who are you?": "identity",
+        "who r u": "identity",
         "thank you!": "thanks",
         "thank you so much!": "thanks",
         "bye!": "farewell",
         "see you later": "farewell",
         "good day": "greeting",
+        "morning": "greeting",
         "heyy": "greeting",
+        "hola": "greeting",
+        "how r u": "status",
+        "are you there?": "status",
     }
     for message, intent in cases.items():
         resp = client.post(
@@ -604,6 +616,49 @@ def test_chat_sql_injection_stays_safe(dispatcher_headers):
     assert "$2b$" not in data["reply"] and "password_hash" not in data["reply"].lower()
 
 
+def test_chat_carrier_mc_number(dispatcher_headers):
+    from app.db.models import Carrier
+    db = SessionLocal()
+    try:
+        mc, name = db.query(Carrier.mc_number, Carrier.name).first()
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": f"carrier {mc} performance?"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        assert name in resp.json()["reply"]
+    finally:
+        db.close()
+
+
+def test_chat_driver_license_number(dispatcher_headers):
+    from app.db.models import Driver
+    db = SessionLocal()
+    try:
+        lic, name = db.query(Driver.license_number, Driver.name).first()
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": f"driver {lic}?"},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        assert name in resp.json()["reply"]
+    finally:
+        db.close()
+
+
+def test_chat_signal_free_question_gets_grounded_refusal(dispatcher_headers):
+    resp = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "When is the company holiday party?"},
+        headers=dispatcher_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode_used"] == "rag"
+
+
 # --- 8. Alerts & Workflow Automations ---
 
 def test_alerts_list_and_workflow_trigger(manager_headers):
@@ -844,3 +899,21 @@ def test_carrier_performance_has_transit_hours(dispatcher_headers):
     resp = client.get("/api/v1/carriers/1/performance", headers=dispatcher_headers)
     assert resp.status_code == 200
     assert "average_transit_hours" in resp.json()
+
+
+def test_rate_limiter_blocks_bursts(dispatcher_headers):
+    # Prove the production limiter still works: enable, burst past 30/min on
+    # a copilot endpoint, expect a 429, then restore the suite-wide bypass.
+    settings.RATE_LIMIT_ENABLED = True
+    try:
+        codes = set()
+        for _ in range(35):
+            r = client.post(
+                "/api/v1/copilot/chat",
+                json={"message": "hi"},
+                headers={**dispatcher_headers, "x-forwarded-for": "9.9.9.9"},
+            )
+            codes.add(r.status_code)
+        assert 429 in codes
+    finally:
+        settings.RATE_LIMIT_ENABLED = False
