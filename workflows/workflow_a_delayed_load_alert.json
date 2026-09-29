@@ -33,7 +33,7 @@
     },
     {
       "parameters": {
-        "url": "http://backend:8000/api/v1/copilot/query",
+        "url": "http://backend:8000/api/v1/agent/chat",
         "method": "POST",
         "sendBody": true,
         "sendHeaders": true,

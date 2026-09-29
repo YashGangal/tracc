@@ -247,6 +247,27 @@ def test_ai_agent_chat_execution(dispatcher_headers):
     assert len(data["tools_used"]) > 0
 
 
+def test_agent_chat_accepts_workflow_token():
+    old_token = settings.WORKFLOW_API_TOKEN
+    settings.WORKFLOW_API_TOKEN = "test-workflow-token"
+    try:
+        authed = client.post(
+            "/api/v1/agent/chat",
+            json={"query": "Summarize operational impact for delayed dispatches."},
+            headers={"X-Workflow-Token": "test-workflow-token"},
+        )
+        assert authed.status_code == 200
+        assert "final_answer" in authed.json()
+
+        denied = client.post(
+            "/api/v1/agent/chat",
+            json={"query": "Summarize operational impact for delayed dispatches."},
+        )
+        assert denied.status_code == 401
+    finally:
+        settings.WORKFLOW_API_TOKEN = old_token
+
+
 # --- 8. Alerts & Workflow Automations ---
 
 def test_alerts_list_and_workflow_trigger(manager_headers):
