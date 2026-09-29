@@ -133,16 +133,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div className="space-y-8 flex flex-col items-end">
             <div className="flex flex-col items-center text-center space-y-6">
             <div
-              className="h-80 w-80 overflow-hidden rounded-3xl shadow-2xl"
+              className="grid place-items-center rounded-[2rem] bg-white p-8 shadow-2xl ring-1 ring-white/30"
               role="img"
               aria-label="Tracc logo"
             >
               <img
                 src="/tracc-mark-dark.svg"
                 alt=""
-                width={384}
-                height={384}
-                className="-m-8 h-[384px] w-[384px] max-w-none"
+                width={224}
+                height={224}
+                className="h-56 w-56 rounded-2xl"
                 draggable={false}
               />
             </div>
@@ -183,7 +183,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#101013]/80 backdrop-blur-xl p-6 sm:p-8 shadow-2xl">
             <header className="flex items-center justify-between">
               <span className="flex items-center gap-2.5">
-                <TraccMark size={32} theme="dark" />
+                <span className="grid place-items-center rounded-lg bg-white p-1 shadow ring-1 ring-black/10">
+                  <TraccMark size={28} theme="dark" />
+                </span>
                 <span className="font-extrabold tracking-tight text-lg">Tracc</span>
               </span>
               <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-blue-400">
