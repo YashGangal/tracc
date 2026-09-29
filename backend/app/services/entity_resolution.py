@@ -214,14 +214,16 @@ def has_explicit_reference(query: str) -> bool:
 
 
 def message_names_entity(db: Session, query: str) -> bool:
-    """True when the message itself resolves to one driver/carrier (or has an
-    explicit reference). Used to stop history context hijacking a question
-    that already names who/what it is about."""
+    """True when the message itself resolves to driver/carrier candidates
+    (single AND multiple — an ambiguous name is still an explicit reference,
+    and history context must never override it) or has an explicit reference.
+    Used to stop history context hijacking a question that already names
+    who/what it is about."""
     if has_explicit_reference(query):
         return True
-    if resolve_driver(db, query)["status"] == "single":
+    if resolve_driver(db, query)["status"] in ("single", "multiple"):
         return True
-    return resolve_carrier(db, query)["status"] == "single"
+    return resolve_carrier(db, query)["status"] in ("single", "multiple")
 
 
 def extract_context_entity(db: Session, text: str) -> Optional[str]:
@@ -248,9 +250,14 @@ def extract_context_entity(db: Session, text: str) -> Optional[str]:
     return None
 
 
+def _display_candidate(res: Dict[str, Any]) -> str:
+    """Candidate text for user-facing messages, minus memory-context hints."""
+    return re.sub(r"\(context:[^)]*\)", "", res.get("candidate") or "").strip()
+
+
 def format_clarification(kind: str, res: Dict[str, Any]) -> str:
     lines = [
-        f"I found **{len(res['matches'])}** {kind}s matching *\"{res['candidate']}\"* — "
+        f"I found **{len(res['matches'])}** {kind}s matching *\"{_display_candidate(res)}\"* — "
         "which one did you mean?"
     ]
     for mit in res["matches"]:
@@ -263,7 +270,7 @@ def format_clarification(kind: str, res: Dict[str, Any]) -> str:
 
 
 def format_not_found(kind: str, res: Dict[str, Any]) -> str:
-    base = f"I couldn't find any {kind} matching *\"{res['candidate']}\"* in the system."
+    base = f"I couldn't find any {kind} matching *\"{_display_candidate(res)}\"* in the system."
     if res.get("suggestions"):
         base += " Did you mean: " + ", ".join(f"**{s}**" for s in res["suggestions"]) + "?"
     else:

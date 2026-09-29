@@ -1003,3 +1003,66 @@ def test_rate_limiter_blocks_bursts(dispatcher_headers):
         assert 429 in codes
     finally:
         settings.RATE_LIMIT_ENABLED = False
+
+
+def test_chat_stale_load_context_loses_to_aggregate(dispatcher_headers):
+    """Replay of the reported bug: after discussing a load, 'delayed loads'
+    must list delays — never re-report the old load."""
+    number = _seeded_load_number()
+    first = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": f"Where is load {number}?"},
+        headers=dispatcher_headers,
+    )
+    assert first.status_code == 200
+    assert number in first.json()["reply"]
+    session_id = first.json()["session_id"]
+    second = client.post(
+        "/api/v1/copilot/chat",
+        json={"message": "delayed loads", "session_id": session_id},
+        headers=dispatcher_headers,
+    )
+    assert second.status_code == 200
+    reply = second.json()["reply"]
+    assert "Operational Risk" in reply
+    assert "Status & Risk" not in reply
+
+
+def test_chat_ambiguous_name_beats_stale_load_context(dispatcher_headers):
+    """An explicitly (if ambiguously) named driver must clarify — never be
+    overridden by a load carried over from earlier in the session."""
+    from app.db.models import Carrier, Driver
+    db = SessionLocal()
+    carrier_id = db.query(Carrier.id).first()[0]
+    db.add_all([
+        Driver(name="Ctx Dup", license_number="TEST-CTXDUP-001",
+               carrier_id=carrier_id, experience_years=1, safety_score=70.0,
+               status="available"),
+        Driver(name="Ctx Dup", license_number="TEST-CTXDUP-002",
+               carrier_id=carrier_id, experience_years=2, safety_score=71.0,
+               status="available"),
+    ])
+    db.commit()
+    try:
+        number = _seeded_load_number()
+        first = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": f"Where is load {number}?"},
+            headers=dispatcher_headers,
+        )
+        assert first.status_code == 200
+        session_id = first.json()["session_id"]
+        second = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": "Tell me about driver Ctx Dup",
+                  "session_id": session_id},
+            headers=dispatcher_headers,
+        )
+        assert second.status_code == 200
+        reply = second.json()["reply"]
+        assert "Which driver?" in reply
+        assert number not in reply
+    finally:
+        db.query(Driver).filter(Driver.license_number.in_(["TEST-CTXDUP-001", "TEST-CTXDUP-002"])).delete()
+        db.commit()
+        db.close()

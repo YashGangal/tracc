@@ -300,11 +300,23 @@ class OperationsAgent:
             ))
             return self._finish(query, traces, tools_used, chitchat_reply(intent))
 
-        # Step 1a: explicit load reference (L14520 / load 4520) — most
-        # specific signal, wins over generic risk/carrier/driver branches.
-        load_res = resolve_load(self.db, query)
-        if load_res["status"] == "single":
-            lid = load_res["matches"][0]["id"]
+        # Step 1a: load lookup. The user's OWN reference (L14520 / load 4520)
+        # always wins. A carried-over session reference only fires for
+        # non-aggregate messages ("is it delayed?", "status?") — "delayed
+        # loads" means the list, never one load.
+        stripped = re.sub(r"\(context:[^)]*\)", "", query)
+        own_res = resolve_load(self.db, stripped)
+        fire_res = None
+        if own_res["status"] == "single":
+            fire_res = own_res
+        elif not own_res.get("candidate"):
+            ctx_res = resolve_load(self.db, query)
+            if ctx_res["status"] == "single" and not re.search(
+                r"\bloads\b", stripped, re.IGNORECASE
+            ):
+                fire_res = ctx_res
+        if fire_res is not None:
+            lid = fire_res["matches"][0]["id"]
             info = self.tool_get_load(lid)
             if "error" in info:
                 traces.append(AgentActionTrace(
@@ -354,18 +366,18 @@ class OperationsAgent:
                 f"- **Carrier:** {info['carrier_name']} · **Driver:** {info['driver_name']}\n"
                 f"{risk_line}"
             )
-        elif load_res["status"] == "none" and load_res.get("candidate"):
+        elif own_res.get("candidate"):
             traces.append(AgentActionTrace(
                 step=step_counter,
                 thought="User referenced a load number that does not exist.",
                 action="get_load",
-                action_input={"load_number": load_res["candidate"]},
+                action_input={"load_number": own_res["candidate"]},
                 observation="No matching load."
             ))
             return self._finish(
                 query, traces, tools_used,
                 f"### Load Lookup\n\nI couldn't find load "
-                f"*{load_res['candidate']}* in the system. Check the load number "
+                f"*{own_res['candidate']}* in the system. Check the load number "
                 f"(e.g. L14520) and try again."
             )
 
