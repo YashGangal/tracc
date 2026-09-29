@@ -133,16 +133,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div className="space-y-8 flex flex-col items-end">
             <div className="flex flex-col items-center text-center space-y-6">
             <div
-              className="grid place-items-center rounded-[2rem] bg-white p-8 shadow-2xl ring-1 ring-white/30"
+              className="grid place-items-center rounded-[2rem] bg-white p-3 shadow-2xl ring-1 ring-white/30"
               role="img"
               aria-label="Tracc logo"
             >
               <img
-                src="/tracc-mark-dark.svg"
+                src="/tracc-mark-login.svg"
                 alt=""
-                width={224}
-                height={224}
-                className="h-56 w-56 rounded-2xl"
+                width={256}
+                height={256}
+                className="h-64 w-64 rounded-[1.25rem]"
                 draggable={false}
               />
             </div>
