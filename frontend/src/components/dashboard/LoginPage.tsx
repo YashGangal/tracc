@@ -3,6 +3,8 @@ import { LogIn, Eye, EyeOff, ShieldCheck, ArrowRight } from "lucide-react";
 import { login, saveSession } from "../../lib/api";
 import { TraccMark } from "./TraccMark";
 import { PixelCanvasField } from "./PixelCanvasField";
+import { DitheredLogo } from "../ui/dithered-logo";
+import { usePrefersReducedMotion } from "../ui/dotmatrix-hooks";
 import { cn } from "../../lib/utils";
 
 interface LoginPageProps {
@@ -33,6 +35,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [emailErr, setEmailErr] = useState("");
   const [pwErr, setPwErr] = useState("");
   const [forgotNote, setForgotNote] = useState(false);
+  // Interactive dithered brand mark. Falls back to the static asset when
+  // the user prefers reduced motion, so the logo always stays intact.
+  const reduceMotion = usePrefersReducedMotion();
 
   const RING =
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0c]";
@@ -132,14 +137,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
           <div className="space-y-8 flex flex-col items-end">
             <div className="flex flex-col items-center text-center space-y-6">
-            <img
-              src="/tracc-mark-login.svg"
-              alt="Tracc logo"
-              width={280}
-              height={280}
-              className="h-[280px] w-[280px] rounded-[2rem] shadow-2xl ring-1 ring-black/10"
-              draggable={false}
-            />
+            <div
+              className="h-[280px] w-[280px] overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-1 ring-black/10"
+              role="img"
+              aria-label="Tracc logo"
+            >
+              {reduceMotion ? (
+                <img
+                  src="/tracc-mark-login.svg"
+                  alt=""
+                  width={280}
+                  height={280}
+                  className="h-full w-full"
+                  draggable={false}
+                />
+              ) : (
+                <DitheredLogo
+                  imageSrc="/tracc-mark-login.svg"
+                  className="h-full w-full text-[#151515]"
+                  gridSize={240}
+                  scale={0.94}
+                  dotScale={1}
+                />
+              )}
+            </div>
             <div>
               <p className="font-extrabold tracking-tight text-6xl xl:text-7xl leading-[1.02]">
                 Tracc
