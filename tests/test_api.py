@@ -1254,3 +1254,65 @@ def test_nvidia_double_503_falls_back(monkeypatch):
     finally:
         settings.AI_PROVIDER, settings.NVIDIA_API_KEY, settings.NVIDIA_MODEL = old
     assert isinstance(out, str) and len(out) > 0
+
+
+# --- SQL self-repair + sanitized failures ---
+
+def _fake_completions(responses):
+    calls = {"n": 0}
+
+    async def fake(prompt, system_prompt="", temperature=0.0, max_tokens=1000):
+        idx = min(calls["n"], len(responses) - 1)
+        calls["n"] += 1
+        return responses[idx]
+
+    return fake
+
+
+def test_sql_failed_execution_repairs_and_runs(monkeypatch):
+    import app.services.text_to_sql as t2s
+
+    bad_sql = "SELECT d.name, ROUND(d.safety_score, 2) AS s FROM drivers d LIMIT 5;"
+    fixed_sql = "SELECT d.name, ROUND(CAST(d.safety_score AS NUMERIC), 2) AS s FROM drivers d LIMIT 5;"
+
+    def fake_execute(query, max_rows=50):
+        if "CAST" in query:
+            return (["name", "s"], [["Amy", 95.5]])
+        raise Exception("function round(double precision, integer) does not exist")
+
+    monkeypatch.setattr(t2s, "execute_read_only_query", fake_execute)
+    monkeypatch.setattr(
+        t2s.AIProvider, "generate_completion",
+        _fake_completions([bad_sql, fixed_sql, "Top drivers by safety score."]),
+    )
+    import asyncio
+    result = asyncio.run(t2s.execute_text_to_sql("List top drivers by safety score"))
+    assert "CAST" in result.generated_sql
+    assert result.rows == [["Amy", 95.5]]
+    assert "psycopg2" not in result.explanation
+    assert "Attempted:" not in result.explanation
+
+
+def test_sql_unfixable_failure_stays_sanitized(monkeypatch):
+    import app.services.text_to_sql as t2s
+
+    bad_sql = "SELECT d.name, ROUND(d.safety_score, 2) AS s FROM drivers d LIMIT 5;"
+
+    def fake_execute(query, max_rows=50):
+        if "pickup_datetime DESC LIMIT 10" in query:
+            return (["load_number"], [["L1"]])
+        raise Exception('psycopg2.errors.UndefinedFunction: function round(double precision, integer) does not exist\nLINE 21: ROUND(CASE\nHINT: No function matches.')
+
+    monkeypatch.setattr(t2s, "execute_read_only_query", fake_execute)
+    monkeypatch.setattr(
+        t2s.AIProvider, "generate_completion",
+        _fake_completions([bad_sql, "DELETE FROM drivers", "Fallback summary."]),
+    )
+    import asyncio
+    result = asyncio.run(t2s.execute_text_to_sql("List top drivers by safety score"))
+    assert result.rows == [["L1"]]
+    assert "psycopg2" not in result.explanation
+    assert "Attempted:" not in result.explanation
+    assert "LINE 21" not in result.explanation
+    assert "HINT" not in result.explanation
+    assert "needed a tweak" in result.explanation

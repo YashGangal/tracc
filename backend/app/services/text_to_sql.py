@@ -100,6 +100,42 @@ def validate_sql(query: str) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
+def _safe_fallback() -> Tuple[List[str], List[List[Any]]]:
+    """Last-resort overview listing. Never raises for a healthy database."""
+    safe_fallback = "SELECT load_number, origin_city, destination_city, status, revenue FROM loads ORDER BY pickup_datetime DESC LIMIT 10;"
+    return execute_read_only_query(safe_fallback, max_rows=10)
+
+
+async def _try_repair_query(user_query: str, failed_sql: str, db_error: str) -> Optional[str]:
+    """One LLM repair attempt for queries that validate but fail at runtime
+    (usually a dialect slip like ROUND on a double). Returns repaired SQL or
+    None. The result is re-validated by the caller before execution."""
+    try:
+        repair_prompt = (
+            f"User question: {user_query}\n"
+            f"Failed SQL: {failed_sql}\n"
+            f"Database error: {db_error[:500]}\n"
+            "Fix ONLY the reported error with the smallest possible change, "
+            "keeping the same intent and columns. "
+            "PostgreSQL rules: ROUND() needs ROUND(CAST(<expr> AS NUMERIC), 2); "
+            "avoid inventing functions."
+        )
+        candidate = await AIProvider.generate_completion(
+            prompt=repair_prompt,
+            system_prompt="You are an expert AI SQL Engineer. Return ONLY the corrected raw SQL query, no commentary.",
+            temperature=0.0,
+        )
+        candidate = (candidate or "").replace("```sql", "").replace("```", "").strip()
+        is_valid, error_msg = validate_sql(candidate)
+        if not is_valid:
+            logger.warning(f"SQL repair rejected by validator: {error_msg}")
+            return None
+        return candidate
+    except Exception as e:
+        logger.warning(f"SQL repair attempt failed: {e}")
+        return None
+
+
 async def execute_text_to_sql(user_query: str) -> SQLQueryResult:
     """
     Translates natural language to SQL, validates security, executes, and synthesizes results.
@@ -114,9 +150,13 @@ RULES:
 1. ONLY return the raw SQL query. Do not wrap in markdown quotes or backticks.
 2. Only write read-only SELECT queries.
 3. Use standard SQL compatible with PostgreSQL and SQLite.
-4. If the user asks for rates or averages, use ROUND(..., 2).
+4. If the user asks for rates or averages, use ROUND(CAST(... AS NUMERIC), 2).
 5. Always limit output to at most 50 rows if unbounded (add LIMIT 50).
 6. DO NOT query the 'users' table.
+7. PostgreSQL function rules (violations WILL fail at runtime):
+   - ROUND() only accepts (numeric, int) — ALWAYS wrap the value: ROUND(CAST(<expr> AS NUMERIC), 2). Never ROUND() a bare division, CASE expression, or float column.
+   - Avoid CTEs (WITH ...) unless the query truly needs them; prefer a single flat SELECT with JOINs.
+   - Compare timestamps with standard operators; never invent functions.
 """
 
     raw_sql = await AIProvider.generate_completion(
@@ -138,19 +178,23 @@ RULES:
         raise ValueError(f"SQL Security Validation Rejected Query: {error_msg}")
 
     # Execute read-only query
-    attempted_sql = raw_sql
     fallback_used = False
-    fallback_note = ""
     try:
         columns, rows = execute_read_only_query(raw_sql, max_rows=settings.SQL_QUERY_MAX_ROWS)
     except Exception as e:
         logger.error(f"SQL execution error: {e}")
-        # Fallback to standard safe query, but disclose it transparently.
-        safe_fallback = "SELECT load_number, origin_city, destination_city, status, revenue FROM loads ORDER BY pickup_datetime DESC LIMIT 10;"
-        columns, rows = execute_read_only_query(safe_fallback, max_rows=10)
-        raw_sql = safe_fallback
-        fallback_used = True
-        fallback_note = f" The requested query failed to execute ({e}); a safe default load listing was returned instead."
+        repaired = await _try_repair_query(user_query, raw_sql, str(e))
+        if repaired is not None:
+            try:
+                columns, rows = execute_read_only_query(repaired, max_rows=settings.SQL_QUERY_MAX_ROWS)
+                raw_sql = repaired
+            except Exception as e2:
+                logger.error(f"SQL repair also failed: {e2}")
+                columns, rows = _safe_fallback()
+                fallback_used = True
+        else:
+            columns, rows = _safe_fallback()
+            fallback_used = True
 
     exec_time = round((time.time() - start_time) * 1000, 2)
 
@@ -169,7 +213,13 @@ Present the answer as short markdown bullets with **bold** key figures plus a on
     )
     explanation_text = (explanation or "").strip() or "Query executed successfully against live operational data."
     if fallback_used:
-        explanation_text = f"[Note: attempted query failed validation/execution; returned safe fallback. Attempted: {attempted_sql}]{fallback_note} {explanation_text}"
+        # Sanitized on purpose: raw SQL and database errors are logged
+        # server-side, never shown to dispatchers.
+        explanation_text = (
+            "Note: your specific question needed a tweak to run, so here's a "
+            "safe overview of recent loads instead. Try rephrasing with simpler "
+            f"terms. {explanation_text}"
+        )
 
     return SQLQueryResult(
         generated_sql=raw_sql,
