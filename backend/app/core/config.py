@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = None
     OPENROUTER_MODEL: Optional[str] = None
     NVIDIA_API_KEY: Optional[str] = None
-    NVIDIA_MODEL: str = "meta/llama-3.1-8b-instruct"
+    NVIDIA_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
     AI_PROVIDER: str = "openai"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
