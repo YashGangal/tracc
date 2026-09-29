@@ -70,19 +70,26 @@ _PRONOUN_PERSON_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Procedure-flavored questions go to RAG first (intent dominates); data
-# questions go to SQL; everything else falls through to the agent.
+# Substring matching caused real misroutes ("those" contains "hos",
+# "country" contains "count"), so triggers are word-boundaried regexes.
 RAG_TRIGGERS = [
-    "sop", "procedure", "protocol", "polic", "how to", "how do i",
-    "rule", "hos", "detention", "reefer", "claim", "compliance",
-    "breakdown", "fatigue", "onboard",
+    r"\bsops?\b", r"\bprocedures?\b", r"\bprotocols?\b", r"\bpolic(y|ies)\b",
+    r"\bhow\s+to\b", r"\bhow\s+do\s+i\b", r"\brules?\b", r"\bhos\b",
+    r"\bdetentions?\b", r"\breefers?\b", r"\bclaims?\b", r"\bcompliance\b",
+    r"\bbreakdowns?\b", r"\bfatigue\b", r"\bonboard\w*\b",
 ]
 SQL_TRIGGERS = [
-    "how many", "how much", "count", "total", "average", "avg ",
-    "list", "show me", "show all", "top ", "worst", "best", "which",
-    "revenue", "otd", "on-time", "on time", "rate", "percent", "compare",
-    "select",
+    r"\bhow\s+many\b", r"\bhow\s+much\b", r"\bcounts?\b", r"\btotals?\b",
+    r"\baverages?\b", r"\bavg\b", r"\blists?\b", r"\bshow\s+me\b",
+    r"\bshow\s+all\b", r"\btop\b", r"\bworst\b", r"\bbest\b", r"\bwhich\b",
+    r"\brevenues?\b", r"\botd\b", r"\bon-time\b", r"\bon\s+time\b",
+    r"\brates?\b", r"\bpercent\b", r"\bcompar(?:e|ed|ing|ison)\b",
+    r"\bselect\b",
 ]
+
+
+def _matches_any(patterns, text: str) -> bool:
+    return any(re.search(p, text) for p in patterns)
 
 _MAX_TURNS = 10
 _MAX_SESSIONS = 2000
@@ -143,7 +150,7 @@ async def chat(
             reply = chitchat_reply(intent, current_user.full_name)
         else:
             q = message.lower()
-            if any(t in q for t in RAG_TRIGGERS) or (
+            if _matches_any(RAG_TRIGGERS, q) or (
                 _INTERROGATIVE_RE.match(message.strip())
                 and not _NO_SIGNAL_RE.search(message)
                 and not _PRONOUN_PERSON_RE.search(message)
@@ -152,7 +159,7 @@ async def chat(
                 result = await query_knowledge_base(message, db=db)
                 reply = result.answer
                 citations = result.citations
-            elif any(t in q for t in SQL_TRIGGERS):
+            elif _matches_any(SQL_TRIGGERS, q):
                 mode = "sql"
                 try:
                     result = await execute_text_to_sql(message)

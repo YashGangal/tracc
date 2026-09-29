@@ -745,6 +745,19 @@ def test_chat_signal_free_question_gets_grounded_refusal(dispatcher_headers):
     assert data["mode_used"] == "rag"
 
 
+def test_chat_substring_traps_stay_out_of_rag(dispatcher_headers):
+    # "those" contains "hos", "country" contains "count" — neither may
+    # trigger SOP retrieval on its own.
+    for message in ["list those 5 delayed loads", "which country lanes are busiest"]:
+        resp = client.post(
+            "/api/v1/copilot/chat",
+            json={"message": message},
+            headers=dispatcher_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["mode_used"] != "rag", message
+
+
 # --- 8. Alerts & Workflow Automations ---
 
 def test_alerts_list_and_workflow_trigger(manager_headers):
