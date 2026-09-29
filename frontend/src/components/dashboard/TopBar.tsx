@@ -73,8 +73,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Mobile menu trigger */}
         <button
           onClick={onOpenMobileMenu}
-          className="lg:hidden p-1.5 rounded-md text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+          className="lg:hidden p-1.5 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900"
           title="Open menu"
+          aria-label="Open menu"
         >
           <Menu className="w-4 h-4" />
         </button>
@@ -127,8 +128,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           onClick={onRefreshData}
           disabled={isRefreshing}
-          className="p-2 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
+          className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
           title="Refresh operational data"
+          aria-label="Refresh operational data"
         >
           <RefreshCw
             className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-blue-500")}
@@ -139,8 +141,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 relative text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
+            className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center relative text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
             title="Operational Alerts"
+            aria-label={`Operational alerts, ${unreadAlerts.length} unread`}
+            aria-expanded={showNotifications}
           >
             <Bell className="w-3.5 h-3.5" />
             {unreadAlerts.length > 0 && (
@@ -149,7 +153,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
                 <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                   Operational Alerts ({unreadAlerts.length})
@@ -189,7 +193,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Theme Toggle */}
         <button
           onClick={(e) => onToggleTheme(e)}
-          className="p-2 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors cursor-pointer"
+          className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors cursor-pointer"
           title={theme === "dark" ? "Current: Dark Mode (Click for Light Mode)" : "Current: Light Mode (Click for Dark Mode)"}
           aria-label={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
@@ -203,8 +207,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Quick Settings */}
         <button
           onClick={onOpenSettings}
-          className="p-2 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
+          className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
           title="Settings & Motion Control"
+          aria-label="Open settings"
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
         </button>
@@ -221,8 +226,9 @@ export const TopBar: React.FC<TopBarProps> = ({
           {onLogout && (
             <button
               onClick={onLogout}
-              className="p-2 text-neutral-500 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
+              className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-neutral-500 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition-colors"
               title="Log out"
+              aria-label="Log out"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

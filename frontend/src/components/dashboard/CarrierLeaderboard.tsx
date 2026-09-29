@@ -80,10 +80,15 @@ export const CarrierLeaderboard: React.FC<CarrierLeaderboardProps> = ({
 
         {/* Search */}
         <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" aria-hidden />
+          <label htmlFor="carrier-search" className="sr-only">
+            Search carrier or MC number
+          </label>
           <input
+            id="carrier-search"
             type="text"
             placeholder="Search carrier or MC#..."
+            aria-label="Search carrier or MC number"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-neutral-100/80 dark:bg-neutral-800/80 rounded-md border border-neutral-200 dark:border-neutral-700 outline-none text-neutral-800 dark:text-neutral-200 placeholder-neutral-400 focus:border-neutral-400 dark:focus:border-neutral-500 transition-colors"

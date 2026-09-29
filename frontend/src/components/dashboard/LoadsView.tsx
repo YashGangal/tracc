@@ -194,31 +194,43 @@ export const LoadsView: React.FC<LoadsViewProps> = ({
           <thead>
             <tr className="border-b border-neutral-200 dark:border-neutral-800 text-neutral-400 font-medium">
               <th
-                onClick={() => handleSort("id")}
-                className="py-3 px-3 cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200"
+                aria-sort={sortField === "id" ? (sortAsc ? "ascending" : "descending") : "none"}
+                className="py-3 px-3"
               >
-                <div className="inline-flex items-center gap-1">
+                <button
+                  onClick={() => handleSort("id")}
+                  aria-label="Sort by Load ID"
+                  className="inline-flex items-center gap-1 cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200 rounded focus-visible:outline-2 focus-visible:outline-blue-500"
+                >
                   Load ID <ArrowUpDown className="w-3 h-3" />
-                </div>
+                </button>
               </th>
               <th className="py-3 px-3">Route (Origin → Destination)</th>
               <th className="py-3 px-3">Carrier / Driver</th>
               <th className="py-3 px-3">Trailer Type</th>
               <th
-                onClick={() => handleSort("revenue")}
-                className="py-3 px-3 text-right cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200"
+                aria-sort={sortField === "revenue" ? (sortAsc ? "ascending" : "descending") : "none"}
+                className="py-3 px-3 text-right"
               >
-                <div className="inline-flex items-center gap-1">
+                <button
+                  onClick={() => handleSort("revenue")}
+                  aria-label="Sort by Revenue"
+                  className="inline-flex items-center gap-1 cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200 rounded focus-visible:outline-2 focus-visible:outline-blue-500"
+                >
                   Revenue <ArrowUpDown className="w-3 h-3" />
-                </div>
+                </button>
               </th>
               <th
-                onClick={() => handleSort("lateProbability")}
-                className="py-3 px-3 text-center cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200"
+                aria-sort={sortField === "lateProbability" ? (sortAsc ? "ascending" : "descending") : "none"}
+                className="py-3 px-3 text-center"
               >
-                <div className="inline-flex items-center gap-1">
+                <button
+                  onClick={() => handleSort("lateProbability")}
+                  aria-label="Sort by Late Risk"
+                  className="inline-flex items-center gap-1 cursor-pointer hover:text-neutral-800 dark:hover:text-neutral-200 rounded focus-visible:outline-2 focus-visible:outline-blue-500"
+                >
                   Late Risk <ArrowUpDown className="w-3 h-3" />
-                </div>
+                </button>
               </th>
               <th className="py-3 px-3">Status</th>
               <th className="py-3 px-3 text-right">Action</th>
@@ -228,8 +240,17 @@ export const LoadsView: React.FC<LoadsViewProps> = ({
             {filtered.map((load) => (
               <tr
                 key={load.id}
+                tabIndex={0}
+                role="button"
+                aria-label={`Open load ${load.id}: ${load.origin} to ${load.destination}, ${load.status}`}
                 onClick={() => onSelectLoad(load)}
-                className="hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer group"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectLoad(load);
+                  }
+                }}
+                className="hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer group focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:-outline-offset-2"
               >
                 <td className="py-3 px-3 font-mono font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-blue-500 transition-colors">
                   {load.id}

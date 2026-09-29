@@ -382,7 +382,7 @@ export const GithubCard: React.FC<GithubCardProps> = ({
             },
           }}
           className={cn(
-            "absolute bottom-full z-50 mb-3 w-80 rounded-2xl border border-dashed border-neutral-300 bg-white/95 p-5 shadow-2xl backdrop-blur-md transition-colors after:absolute after:top-full after:left-0 after:h-4 after:w-full dark:border-neutral-800 dark:bg-neutral-950/95",
+            "absolute bottom-full z-50 mb-3 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-dashed border-neutral-300 bg-white/95 p-5 shadow-2xl backdrop-blur-md transition-colors after:absolute after:top-full after:left-0 after:h-4 after:w-full dark:border-neutral-800 dark:bg-neutral-950/95",
             alignClass,
             popoverClassName
           )}

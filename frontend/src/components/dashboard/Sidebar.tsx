@@ -208,6 +208,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <img
                 src="https://github.com/YashGangal.png"
                 alt="Yash Gangal"
+                loading="lazy"
+                decoding="async"
+                width={28}
+                height={28}
                 className="w-7 h-7 rounded-full border border-neutral-200 dark:border-neutral-700 object-cover shadow-xs"
               />
               <div className="min-w-0 flex-1 text-left">

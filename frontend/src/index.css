@@ -120,8 +120,9 @@
   z-index: 2;
 }
 
-/* A6 contrast: 10px neutral-400 metadata fails 4.5:1 on white - lift in light mode */
-.text-\[10px\].text-neutral-400 {
+/* A6 contrast: 10-11px neutral-400 metadata fails 4.5:1 on white - lift in light mode */
+.text-\[10px\].text-neutral-400,
+.text-\[11px\].text-neutral-400 {
   color: #737373;
 }
 

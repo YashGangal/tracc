@@ -461,6 +461,19 @@ export default function App() {
 
         {/* Content Area */}
         <main className="flex-1">
+          <h1 className="sr-only">
+            {{
+              overview: "Operations overview",
+              loads: "Load board",
+              predictions: "Delay predictions",
+              carriers: "Carriers",
+              copilot: "AI Copilot",
+              knowledge: "Knowledge base",
+              alerts: "Alerts center",
+              analytics: "Analytics and BI",
+              settings: "Settings",
+            }[currentSection] ?? "Tracc operations console"}
+          </h1>
           <AnimatePresence mode="wait">
             <motion.div
               key={currentSection}

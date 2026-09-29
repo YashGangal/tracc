@@ -18,6 +18,15 @@ export const LoadDetailDrawer: React.FC<LoadDetailDrawerProps> = ({
   onClose,
   onAskAI,
 }) => {
+  React.useEffect(() => {
+    if (!load) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [load, onClose]);
+
   return (
     <AnimatePresence>
       {load && (
@@ -34,6 +43,9 @@ export const LoadDetailDrawer: React.FC<LoadDetailDrawerProps> = ({
 
           {/* Slide-out Drawer Panel */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={load ? `Load ${load.id} details` : "Load details"}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}

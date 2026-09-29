@@ -80,9 +80,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             className="fixed inset-0 bg-neutral-950/60 backdrop-blur-xs"
           />
 
-          {/* Modal Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97, y: -10 }}
+            {/* Modal Card */}
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Command palette: search loads, carriers, and documents"
+              initial={{ opacity: 0, scale: 0.97, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -10 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
@@ -116,12 +119,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             <div className="max-h-96 overflow-y-auto p-2 space-y-3 text-xs">
               {/* Ask AI Copilot quick action */}
               {query.trim().length > 2 && (
-                <div
+                <button
                   onClick={() => {
                     onTriggerCopilotQuery(query);
                     onClose();
                   }}
-                  className="p-2.5 rounded-lg bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 flex items-center justify-between text-blue-700 dark:text-blue-300 hover:bg-blue-100/50 cursor-pointer transition-colors"
+                  aria-label={`Ask AI Copilot about ${query}`}
+                  className="w-full p-2.5 rounded-lg bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 flex items-center justify-between text-blue-700 dark:text-blue-300 hover:bg-blue-100/50 cursor-pointer transition-colors text-left"
                 >
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-blue-500" />
@@ -130,7 +134,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     </span>
                   </div>
                   <CornerDownLeft className="w-3.5 h-3.5 opacity-60" />
-                </div>
+                </button>
               )}
 
               {/* Loads section */}

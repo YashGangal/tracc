@@ -170,10 +170,15 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
           {/* Search & Filter */}
           <div className="space-y-2">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" aria-hidden />
+              <label htmlFor="kb-search" className="sr-only">
+                Search procedures, reefer temps, detention
+              </label>
               <input
+                id="kb-search"
                 type="text"
                 placeholder="Search procedures, reefer temps, detention..."
+                aria-label="Search procedures, reefer temps, detention"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 outline-none"
@@ -206,9 +211,19 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
               return (
                 <div
                   key={doc.id}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Open document ${doc.title}`}
+                  aria-pressed={isSelected}
                   onClick={() => openDoc(doc.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openDoc(doc.id);
+                    }
+                  }}
                   className={cn(
-                    "p-3.5 rounded-xl border text-xs cursor-pointer transition-all",
+                    "p-3.5 rounded-xl border text-xs cursor-pointer transition-all focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:-outline-offset-2",
                     isSelected
                       ? "border-blue-500/40 bg-blue-50/20 dark:bg-blue-950/20 shadow-xs"
                       : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
