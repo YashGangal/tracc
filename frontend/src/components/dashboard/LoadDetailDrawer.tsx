@@ -6,6 +6,7 @@ import { RiskMeter } from "../codedvisuals/RiskMeter";
 import { ShapContributions } from "../codedvisuals/ShapContributions";
 import { LoadTimeline } from "../codedvisuals/LoadTimeline";
 import { formatCurrency, cn } from "../../lib/utils";
+import { useFocusTrap } from "../../lib/focus-trap";
 
 interface LoadDetailDrawerProps {
   load: LoadItem | null;
@@ -27,6 +28,9 @@ export const LoadDetailDrawer: React.FC<LoadDetailDrawerProps> = ({
     return () => window.removeEventListener("keydown", onKey);
   }, [load, onClose]);
 
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  useFocusTrap(!!load, panelRef);
+
   return (
     <AnimatePresence>
       {load && (
@@ -43,6 +47,8 @@ export const LoadDetailDrawer: React.FC<LoadDetailDrawerProps> = ({
 
           {/* Slide-out Drawer Panel */}
           <motion.div
+            ref={panelRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-label={load ? `Load ${load.id} details` : "Load details"}
@@ -50,7 +56,7 @@ export const LoadDetailDrawer: React.FC<LoadDetailDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="relative w-full max-w-lg bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl h-full flex flex-col z-10"
+            className="relative w-full max-w-lg bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl h-full flex flex-col z-10 [contain:paint]"
           >
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">

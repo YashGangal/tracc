@@ -6,6 +6,7 @@ import { RechartsSparkline, SparklinePoint } from "../codedvisuals/RechartsSpark
 import { SpotlightCard } from "../codedvisuals/SpotlightCard";
 import { formatCurrency, formatPercent, cn } from "../../lib/utils";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { usePrefersReducedMotion } from "../ui/dotmatrix-hooks";
 
 interface KPICardGridProps {
   metrics: MetricData;
@@ -70,6 +71,9 @@ export const KPICardGrid: React.FC<KPICardGridProps> = ({
     days.length > 1 ? days.map((t) => (t.loads > 0 ? t.revenue / t.loads : 0)) : [];
   const hist = (vals: number[]) =>
     vals.map((value, i) => ({ period: days[i]?.period ?? "", value }));
+  // Staggered card entrances jank first paint on weak GPUs — collapse to a
+  // single fade when reduced motion is preferred.
+  const reduceMotion = usePrefersReducedMotion();
   const cards: KPICardConfig[] = [
     {
       id: "total-loads",
@@ -177,13 +181,13 @@ export const KPICardGrid: React.FC<KPICardGridProps> = ({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {cards.map((card, idx) => (
-        <motion.div
-          key={card.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.28, delay: idx * 0.03, ease: [0.22, 1, 0.36, 1] }}
-          className="h-full"
-        >
+          <motion.div
+            key={card.id}
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, delay: reduceMotion ? 0 : idx * 0.03, ease: [0.22, 1, 0.36, 1] }}
+            className="h-full"
+          >
           <SpotlightCard
             onClick={card.action}
             spotlightColor={

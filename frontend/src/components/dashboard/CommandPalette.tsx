@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, Truck, Building2, BookOpen, Sparkles, X, ArrowRight, CornerDownLeft } from "lucide-react";
 import { LoadItem, CarrierItem, DocumentItem } from "../../lib/types";
 import { cn } from "../../lib/utils";
+import { useFocusTrap } from "../../lib/focus-trap";
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onTriggerCopilotQuery,
 }) => {
   const [query, setQuery] = useState("");
+  const cardRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, cardRef);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -82,6 +85,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Modal Card */}
             <motion.div
+              ref={cardRef}
+              tabIndex={-1}
               role="dialog"
               aria-modal="true"
               aria-label="Command palette: search loads, carriers, and documents"
@@ -89,7 +94,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -10 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="relative w-full max-w-xl bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-2xl overflow-hidden z-10"
+            className="relative w-full max-w-xl bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-2xl overflow-hidden z-10 [contain:paint]"
           >
             {/* Search Input bar */}
             <div className="flex items-center px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 gap-3">

@@ -118,6 +118,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   }
 
   return (
+    <>
+    {/* Brand decision: login is a fixed dark stage in both themes, so the
+        hex surfaces below are intentional — do not migrate them to theme vars. */}
     <div className="min-h-screen bg-[#0a0a0c] text-neutral-100 relative overflow-hidden">
       {/* Full-bleed interactive pixel field */}
       <PixelCanvasField colors={["#3b82f6", "#22d3ee", "#22c55e"]} ambient={false} />
@@ -387,6 +390,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         </aside>
       </main>
     </div>
+    </>
   );
 };
 

@@ -97,7 +97,9 @@
   background: #71717a;
 }
 
-/* Reduced motion support */
+/* Reduced motion: kill decorative movement, but keep state feedback alive.
+   Spinners, live dots, and loading shimmer switch to a gentle opacity pulse
+   so reduced-motion users still see "working / live / loading" states. */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
@@ -105,6 +107,16 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .animate-spin,
+  .animate-ping,
+  .animate-pulse {
+    animation: rm-status-fade 2s ease-in-out infinite !important;
+  }
+}
+
+@keyframes rm-status-fade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 /* Circular theme reveal (View Transitions API; driven from the toggle point) */

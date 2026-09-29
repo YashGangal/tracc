@@ -419,7 +419,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fbfbfb] dark:bg-[#09090b] text-neutral-900 dark:text-neutral-100 flex transition-colors">
+    <div className="min-h-screen bg-[var(--background)] text-neutral-900 dark:text-neutral-100 flex transition-colors">
       {/* Sidebar Navigation */}
       <Sidebar
         currentSection={currentSection}
