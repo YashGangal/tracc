@@ -194,6 +194,44 @@ def test_document_upload_rejects_unsupported_file_types(manager_headers):
     assert response.status_code == 400
 
 
+def test_manager_can_delete_uploaded_document(manager_headers):
+    upload = client.post(
+        "/api/v1/rag/upload",
+        headers=manager_headers,
+        files={"file": ("delete-me.md", b"# Temp doc\nDelete me.", "text/markdown")},
+    )
+    assert upload.status_code == 200
+    doc_id = upload.json()["document_id"]
+
+    delete_resp = client.delete(f"/api/v1/rag/documents/{doc_id}", headers=manager_headers)
+    assert delete_resp.status_code == 200
+    data = delete_resp.json()
+    assert data["status"] == "success"
+    assert data["chunks_deleted"] >= 1
+
+    chunks_resp = client.get(f"/api/v1/rag/documents/{doc_id}/chunks", headers=manager_headers)
+    assert chunks_resp.status_code == 404
+
+
+def test_document_delete_guards(manager_headers, dispatcher_headers):
+    docs = client.get("/api/v1/rag/documents?limit=100", headers=manager_headers).json()
+    seed_docs = [d for d in docs if d["uploaded_by"] == "System SOP Registry"]
+    if not seed_docs:
+        # Indexing is lazy — force it, then re-list.
+        client.post("/api/v1/rag/query", headers=manager_headers, json={"query": "breakdown protocol"})
+        docs = client.get("/api/v1/rag/documents?limit=100", headers=manager_headers).json()
+        seed_docs = [d for d in docs if d["uploaded_by"] == "System SOP Registry"]
+    assert seed_docs, "expected seeded SOP registry documents"
+    seed_id = seed_docs[0]["id"]
+
+    # Official SOPs are permanent.
+    assert client.delete(f"/api/v1/rag/documents/{seed_id}", headers=manager_headers).status_code == 403
+    # Missing documents 404.
+    assert client.delete("/api/v1/rag/documents/999999", headers=manager_headers).status_code == 404
+    # Dispatchers cannot delete at all.
+    assert client.delete(f"/api/v1/rag/documents/{seed_id}", headers=dispatcher_headers).status_code == 403
+
+
 # --- 7. Autonomous ReAct AI Agent ---
 
 def test_ai_agent_chat_execution(dispatcher_headers):

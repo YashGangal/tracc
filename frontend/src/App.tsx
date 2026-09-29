@@ -35,6 +35,7 @@ import {
   resolveAlert as apiResolveAlert,
   triggerWorkflow as apiTriggerWorkflow,
   uploadDocument as apiUploadDocument,
+  deleteDocument as apiDeleteDocument,
   type TrendPoint,
   type LaneRow,
 } from "./lib/backend";
@@ -367,6 +368,12 @@ export default function App() {
     if (docs.length > 0) setDocuments(docs);
   };
 
+  const handleDeleteDoc = async (doc: DocumentItem) => {
+    await apiDeleteDocument(doc.id);
+    const docs = await fetchDocuments().catch(() => []);
+    setDocuments(docs);
+  };
+
   const handleAskAIAboutLoad = (load: LoadItem) => {
     setSelectedLoad(null);
     setCopilotInitialQuery(`Why is load ${load.id} ${String(load.status).toLowerCase()} and what should I do?`);
@@ -601,8 +608,9 @@ export default function App() {
               {currentSection === "knowledge" && (
                 <KnowledgeBaseView
                   documents={documents}
-                  canUpload={canManage}
+                  canManage={canManage}
                   onUpload={handleUploadDoc}
+                  onDelete={handleDeleteDoc}
                   onAskCopilot={handleTriggerCopilotQuery}
                 />
               )}

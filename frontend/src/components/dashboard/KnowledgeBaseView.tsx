@@ -1,20 +1,22 @@
 import React, { useState } from "react";
-import { BookOpen, Search, Upload, FileText, CheckCircle2, ChevronRight, AlertCircle, Sparkles, Filter } from "lucide-react";
+import { BookOpen, Search, Upload, FileText, CheckCircle2, ChevronRight, AlertCircle, Sparkles, Filter, Trash2 } from "lucide-react";
 import { DocumentItem } from "../../lib/types";
 import { fetchDocChunks } from "../../lib/backend";
 import { cn } from "../../lib/utils";
 
 interface KnowledgeBaseViewProps {
   documents: DocumentItem[];
-  canUpload: boolean;
+  canManage: boolean;
   onUpload: (file: File) => Promise<void>;
+  onDelete: (doc: DocumentItem) => Promise<void>;
   onAskCopilot: (query: string) => void;
 }
 
 export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
   documents,
-  canUpload,
+  canManage,
   onUpload,
+  onDelete,
   onAskCopilot,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -25,6 +27,10 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
   const [uploadError, setUploadError] = useState("");
   const [sections, setSections] = useState<{ heading: string; text: string; page: number }[]>([]);
   const [sectionsLoading, setSectionsLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  const confirmTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedDoc = documents.find((d) => d.id === selectedId) || documents[0];
 
@@ -58,6 +64,35 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents.length]);
 
+  // Two-click delete: first click arms, second click confirms. Auto-disarms.
+  async function handleDelete(e: React.MouseEvent, doc: DocumentItem) {
+    e.stopPropagation();
+    setDeleteError("");
+    if (confirmDeleteId !== doc.id) {
+      setConfirmDeleteId(doc.id);
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      confirmTimer.current = setTimeout(() => setConfirmDeleteId(null), 4000);
+      return;
+    }
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    setConfirmDeleteId(null);
+    setDeletingId(doc.id);
+    try {
+      await onDelete(doc);
+      if (selectedId === doc.id) setSelectedId(null);
+    } catch (err: any) {
+      setDeleteError(err?.message || "Delete failed");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  React.useEffect(() => {
+    return () => {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    };
+  }, []);
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -90,7 +125,7 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
         </div>
 
         {/* Upload Button */}
-        {canUpload ? (
+        {canManage ? (
           <label className="px-3 py-2 rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium text-xs hover:bg-neutral-800 dark:hover:bg-neutral-100 cursor-pointer transition-colors inline-flex items-center gap-2 self-start sm:self-auto shadow-xs">
             <Upload className="w-4 h-4" />
             <span>{isUploading ? "Indexing chunks..." : "Upload SOP Document"}</span>
@@ -112,6 +147,12 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
       {uploadError && (
         <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
           {uploadError}
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+          {deleteError}
         </div>
       )}
 
@@ -191,8 +232,34 @@ export const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({
 
                   <div className="flex items-center justify-between mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 text-[10px] text-neutral-400 font-mono">
                     <span>{doc.pages} chunks · Updated {doc.updatedAt || "—"}</span>
-                    <span className="text-blue-500 font-sans font-medium flex items-center gap-0.5">
-                      View Sections <ChevronRight className="w-3 h-3" />
+                    <span className="flex items-center gap-2">
+                      {canManage && doc.uploadedBy !== "System SOP Registry" && (
+                        <button
+                          onClick={(e) => handleDelete(e, doc)}
+                          disabled={deletingId === doc.id}
+                          title={confirmDeleteId === doc.id ? "Click again to confirm delete" : `Delete ${doc.title}`}
+                          aria-label={`Delete ${doc.title}`}
+                          className={cn(
+                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-sans font-medium transition-colors",
+                            confirmDeleteId === doc.id
+                              ? "bg-red-500 text-white"
+                              : "text-neutral-400 hover:text-red-500 hover:bg-red-500/10",
+                            deletingId === doc.id && "opacity-50"
+                          )}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>
+                            {deletingId === doc.id
+                              ? "Deleting…"
+                              : confirmDeleteId === doc.id
+                                ? "Confirm?"
+                                : "Delete"}
+                          </span>
+                        </button>
+                      )}
+                      <span className="text-blue-500 font-sans font-medium flex items-center gap-0.5">
+                        View Sections <ChevronRight className="w-3 h-3" />
+                      </span>
                     </span>
                   </div>
                 </div>

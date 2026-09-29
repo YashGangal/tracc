@@ -152,6 +152,7 @@ export function normDoc(d: any): DocumentItem {
     updatedAt: String(d.created_at || "").slice(0, 10),
     summary: `${d.chunk_count ?? 0} indexed chunks · uploaded by ${d.uploaded_by || "system"}`,
     content: "",
+    uploadedBy: d.uploaded_by || "system",
     sections: [],
   };
 }
@@ -315,6 +316,10 @@ export async function uploadDocument(file: File): Promise<void> {
   const fd = new FormData();
   fd.append("file", file);
   await apiFetch("/rag/upload", { method: "POST", formData: fd });
+}
+
+export async function deleteDocument(id: string): Promise<{ filename: string; chunks_deleted: number }> {
+  return apiFetch(`/rag/documents/${id}`, { method: "DELETE" });
 }
 
 export async function copilotAgent(query: string): Promise<any> {

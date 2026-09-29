@@ -72,6 +72,7 @@ export interface DocumentItem {
   updatedAt: string;
   summary: string;
   content: string;
+  uploadedBy?: string;
   sections: {
     heading: string;
     text: string;

@@ -23,6 +23,9 @@ router = APIRouter(prefix="/rag", tags=["RAG Knowledge Base"], dependencies=[Dep
 ALLOWED_DOCUMENT_EXTENSIONS = {".md", ".txt", ".pdf"}
 MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024
 
+# Official SOP registry entries are permanent product knowledge, not uploads.
+SEED_UPLOADED_BY = "System SOP Registry"
+
 
 @router.post("/query", response_model=RAGQueryResult)
 async def query_knowledge(
@@ -161,6 +164,51 @@ async def upload_document(
         "document_id": doc.id,
         "filename": safe_filename,
         "chunks_indexed": len(chunks)
+    }
+
+
+@router.delete("/documents/{doc_id}")
+def delete_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("operations_manager", "admin")),
+):
+    """Delete a user-uploaded document with all its chunks (undo a bad upload)."""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.uploaded_by == SEED_UPLOADED_BY:
+        raise HTTPException(status_code=403, detail="Official SOP registry documents cannot be deleted.")
+
+    chunks_deleted = db.query(KnowledgeChunk).filter(KnowledgeChunk.document_id == doc.id).delete()
+    filename = doc.name
+    storage_path = doc.storage_path
+    db.delete(doc)
+    log_audit_event(
+        db,
+        "knowledge_document.delete",
+        "document",
+        actor=current_user,
+        entity_id=doc_id,
+        metadata={"filename": filename, "chunks_deleted": chunks_deleted},
+    )
+    db.commit()
+
+    # Remove the stored file only when it lives inside the uploads dir —
+    # registry sources must never be touched from disk.
+    try:
+        base = os.path.realpath(UPLOADS_DIR)
+        target = os.path.realpath(storage_path)
+        if target.startswith(base + os.sep) and os.path.isfile(target):
+            os.remove(target)
+    except OSError:
+        pass
+
+    return {
+        "status": "success",
+        "document_id": doc_id,
+        "filename": filename,
+        "chunks_deleted": chunks_deleted,
     }
 
 
