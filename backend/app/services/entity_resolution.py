@@ -35,7 +35,7 @@ _NUMERIC_REF_RE = re.compile(
 )
 _QUOTED_RE = re.compile(r'"([^"]+)"|\'([^\']+)\'')
 _ENTITY_LEAD_RE = re.compile(
-    r"\b(?:driver|carrier|load|truck)s?\b\s*(?:named|called|no\.?|number|#|id)?\s*:?\s*(.+)$",
+    r"\b(?:driver|carrier|load|truck)s?\b\s*(?:named|called|no\.?|number|#|id)?\s*:?\s*(.*)$",
     re.IGNORECASE,
 )
 

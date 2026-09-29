@@ -32,18 +32,25 @@ _OPERATIONAL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Leading patterns are intentionally unanchored at the end: the operational
+# check above runs first, so "thanks, now show delayed loads" still routes
+# to data. \b guards ("thanksgiving", "history", "oklahoma") stay intact.
 _PATTERNS = [
     (GREETING, [
-        r"^(hi|hello|hey|yo|hiya|sup|howdy)\b[,.!\s]*$",
-        r"^good\s?(morning|afternoon|evening)\b[,.!\s]*$",
-        r"^(hi|hello|hey)\s+(there|tracc)\b[,.!\s]*$",
+        r"^(hi|hello|hey|yo|hiya|howdy|sup)\b",
+        r"^he+y+\b",
+        r"^hi+\b",
+        r"^good\s?(morning|afternoon|evening|day)\b",
+        r"^(hi|hello|hey)\s+(there|tracc)\b",
     ]),
     (FAREWELL, [
-        r"^(bye|goodbye|good\s?night|see\s?you|talk\s?(to\s?you\s?)?later|cya)\b[,.!\s]*$",
-        r"^have\s?a\s?good\s?(day|night|one)\b[,.!\s]*$",
+        r"^(bye|goodbye|good\s?night|see\s?you|cya)\b",
+        r"^have\s?a\s?good\s?(day|night|one)\b",
     ]),
     (THANKS, [
-        r"^(thanks?|thank\s?you|thx|much\s?appreciated|appreciated)\b[,.!\s]*$",
+        r"^(thanks?|thank\s?you|thx)\b",
+        r"^much\s?appreciated\b",
+        r"^appreciated\b",
     ]),
     (HELP, [
         r"\bwhat\s+can\s+you\s+do\b",
@@ -65,7 +72,7 @@ _PATTERNS = [
         r"\bhow('s| is)\s+it\s+going\b",
     ]),
     (ACK, [
-        r"^(ok|okay|k|cool|great|nice|got\s?it|understood|sounds\s?good|perfect)\b[,.!\s]*$",
+        r"^(ok|okay|k|cool|great|nice|got\s?it|understood|sounds\s?good|perfect)\b",
     ]),
 ]
 

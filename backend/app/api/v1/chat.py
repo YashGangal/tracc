@@ -99,6 +99,8 @@ async def chat(
     current_user: User = Depends(get_current_user),
 ):
     message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="Message must not be blank.")
     session_id = payload.session_id or uuid4().hex[:12]
     key = f"{current_user.id}:{session_id}"
     history = _history(key)

@@ -651,6 +651,22 @@ class OperationsAgent:
                         observation=f"{len(res_c['matches'])} candidates."
                     ))
                     final_answer = "### Which carrier?\n\n" + format_clarification("carrier", res_c)
+                elif re.search(r"\b(he|him|his|she|her|they|them|their)\b", q_lower) and re.search(
+                    r"\b(score|safety|status|doing|performance|license|experience|duty|late|rate)\b", q_lower
+                ):
+                    # Pronoun about a person with no antecedent (e.g. right after
+                    # an ambiguous answer): ask who, don't dump fleet stats.
+                    traces.append(AgentActionTrace(
+                        step=step_counter,
+                        thought="Pronoun without a resolvable antecedent — requesting the name.",
+                        action="resolve_entity",
+                        action_input={"entity": "unknown", "name": None},
+                        observation="No antecedent in scope."
+                    ))
+                    final_answer = (
+                        "### Which driver?\n\nCould you tell me which driver you mean — "
+                        "a full or partial name works, e.g. *\"How is driver Garcia doing?\"*"
+                    )
                 else:
                     # Default operational report workflow
                     traces.append(AgentActionTrace(
