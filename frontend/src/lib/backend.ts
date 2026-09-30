@@ -1,7 +1,7 @@
 // Live backend access + normalization to Metrix UI types.
 // Backend truth (/api/v1): LoadOut uses int ids + lowercase statuses,
 // CarrierPerformance, AlertOut, PredictionOut/SHAPFactor, SummaryKPIs.
-import { apiFetch } from "./api";
+import { apiFetch, authHeaders, ApiError, API_BASE } from "./api";
 import type {
   LoadItem,
   LoadStatus,
@@ -330,6 +330,87 @@ export async function deleteDocument(id: string): Promise<{ filename: string; ch
 
 export async function copilotChat(message: string, sessionId?: string, signal?: AbortSignal): Promise<any> {
   return apiFetch("/copilot/chat", { method: "POST", body: { message, session_id: sessionId || undefined }, signal });
+}
+
+/** Streaming chat: appends reply word-chunks via onToken, resolves with the
+ * done-event metadata (mode, traces, citations, SQL, table). Abort with signal. */
+export async function copilotChatStream(
+  message: string,
+  sessionId: string | undefined,
+  onToken: (token: string) => void,
+  signal?: AbortSignal
+): Promise<any> {
+  const headers: Record<string, string> = {
+    ...authHeaders(),
+    "Content-Type": "application/json",
+  };
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/copilot/chat/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ message, session_id: sessionId || undefined }),
+      signal,
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new ApiError(-1, "Stopped");
+    throw new ApiError(0, "Backend unreachable");
+  }
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent("auth:expired"));
+    throw new ApiError(401, "Session expired — please log in again");
+  }
+  if (!res.ok || !res.body) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      const data = await res.json();
+      msg = data.detail || data.message || msg;
+    } catch {
+      /* non-JSON */
+    }
+    throw new ApiError(res.status, msg);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let done: any = null;
+  const pump = (text: string) => {
+    buf += text;
+    const parts = buf.split("\n\n");
+    buf = parts.pop() || "";
+    for (const part of parts) {
+      for (const line of part.split("\n")) {
+        const t = line.trim();
+        if (!t.startsWith("data:")) continue;
+        try {
+          const evt = JSON.parse(t.slice(5).trim());
+          if (evt && evt.done === true) done = evt;
+          else if (evt && typeof evt.token === "string") onToken(evt.token);
+        } catch {
+          /* partial frame — wait for more */
+        }
+      }
+    }
+  };
+  try {
+    for (;;) {
+      const { value, done: readerDone } = await reader.read();
+      if (value) pump(decoder.decode(value, { stream: true }));
+      if (readerDone) break;
+    }
+    pump(decoder.decode());
+  } catch (e: any) {
+    if (e?.name === "AbortError" || signal?.aborted) throw new ApiError(-1, "Stopped");
+    throw e;
+  } finally {
+    try {
+      reader.cancel();
+    } catch {
+      /* already closed */
+    }
+  }
+  if (!done) throw new ApiError(0, "Stream ended without result");
+  return done;
 }
 
 export async function copilotAgent(query: string, signal?: AbortSignal): Promise<any> {

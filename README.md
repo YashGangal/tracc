@@ -13,7 +13,7 @@ The AI assists operations staff (recommend, analyze, summarize, alert). Humans k
 | **Operations dashboard** | Live KPIs (loads, OTD %, revenue, carriers), 14-day revenue trajectory, carrier leaderboard, lane analytics, live fleet event feed |
 | **Load board** | Searchable/filterable dispatches with a slide-over detail drawer (route, carrier/driver, delivery-event timeline) |
 | **ML delay-risk center** | Late-delivery probability per load with SHAP factor attribution translated into dispatcher language ("Origin pickup delay adds +X risk") |
-| **AI Copilot (3 modes)** | Safe read-only **Text-to-SQL**, citation-enforced **SOP RAG**, and a **ReAct agent** with visible Thought → Action → Observation traces |
+| **AI Copilot (unified chat)** | One ChatGPT-style thread on `POST /copilot/chat` (+ SSE streaming at `/copilot/chat/stream`): chit-chat intents, session memory, name-based driver/carrier/load resolution, safe read-only **Text-to-SQL**, citation-enforced **SOP RAG**, and a **ReAct agent** with visible Thought → Action → Observation traces |
 | **Knowledge base** | 5 official SOPs indexed; managers can upload (`.md/.txt/.pdf`, 10 MB) and **delete** wrongly-uploaded documents. Seed SOPs are permanent |
 | **Incident center** | Active alert feed with one-click resolve + manual triggers for delayed-load, daily-ops-briefing, and high-risk-carrier workflows |
 | **Automation** | n8n workflow definitions plus a native in-app runner for instant testing |
@@ -26,7 +26,7 @@ The AI assists operations staff (recommend, analyze, summarize, alert). Humans k
 
 - **Backend:** FastAPI · SQLAlchemy · PostgreSQL + pgvector (Docker) with automatic SQLite fallback (local) · JWT + bcrypt · Pydantic v2
 - **ML:** scikit-learn Random Forest + SHAP TreeExplainer, serialized artifacts for sub-ms inference; model version reported dynamically from `benchmark_metrics.json` (currently `random-forest-v1.0`: accuracy **0.977**, precision **1.000**, recall **0.856**, F1 **0.923**)
-- **AI providers:** OpenAI / Gemini / OpenRouter / Anthropic gateway with offline heuristic fallback (works with no keys)
+- **AI providers:** OpenAI / Gemini / OpenRouter / NVIDIA NIM gateway with automatic failover and offline heuristic fallback (works with no keys)
 - **Frontend:** React 19 + Vite + Tailwind 4 + Recharts + Lucide (`frontend/`, route-split, `tsc` clean)
 - **Infra:** Docker Compose (postgres, backend, frontend/nginx, n8n) · GitHub Actions CI (pytest + frontend build)
 
@@ -114,3 +114,13 @@ PROJECT_STATUS.md Live project status & remaining work tracker
 ```
 
 Further reading: [`docs/product-requirements.md`](docs/product-requirements.md) (PRD) · [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) (backups, scanning, audit review) · [`docs/AI_QUALITY_EVALUATION.md`](docs/AI_QUALITY_EVALUATION.md) (pilot acceptance criteria) · [`docs/INTEGRATION_DECISIONS.md`](docs/INTEGRATION_DECISIONS.md) · [`PROJECT_STATUS.md`](PROJECT_STATUS.md)
+
+---
+
+## 7. Known limitations (accepted trade-offs)
+
+- **Money is `Float`, not `Numeric`.** Fine for synthetic demo data; a production ledger would migrate to `Numeric(12, 2)`.
+- **Naive datetimes.** All timestamps are UTC-naive — correct for single-timezone ops, insufficient for multi-TZ production.
+- **Free-tier LLM quotas.** OpenRouter (~50 req/day) and NVIDIA NIM (RPM-capped) fall back to offline heuristics when exhausted; the app stays fully usable, prose just gets templated.
+- **Demo credentials** ship only in dev builds (`import.meta.env.DEV`); production bundles contain none.
+- **Business thresholds** (risk bands, 14-day window, breach rate, 48 mph) live in `backend/app/core/business_rules.py` — one place, human-tuned, not learned.

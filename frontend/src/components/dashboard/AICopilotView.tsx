@@ -3,7 +3,7 @@ import { Sparkles, Send, ShieldCheck, Square, Plus, User } from "lucide-react";
 import { AgentFlow, AgentStep } from "../codedvisuals/AgentFlow";
 import { RetrievalFlow, RetrievedSource } from "../codedvisuals/RetrievalFlow";
 import { DotmSquare11 } from "../ui/dotm-square-11";
-import { copilotAgent, copilotChat, copilotSql, ragQuery } from "../../lib/backend";
+import { copilotAgent, copilotChatStream, copilotSql, ragQuery } from "../../lib/backend";
 import { ApiError, friendlyError } from "../../lib/api";
 import { Markdown } from "../../lib/markdown";
 import { cn } from "../../lib/utils";
@@ -181,21 +181,42 @@ export const AICopilotView: React.FC<AICopilotViewProps> = ({
   };
 
   async function runChat(queryText: string, signal: AbortSignal) {
-    const res = await copilotChat(queryText, sessionId, signal);
-    if (res.session_id && res.session_id !== sessionId) setSessionId(res.session_id);
-    const mode: string = res.mode_used || "agent";
+    const msgId = `cpl-${Date.now()}`;
+    pushCopilot({
+      id: msgId,
+      sender: "copilot",
+      text: "",
+      timestamp: nowTime(),
+      query: queryText,
+    });
+    const done = await copilotChatStream(queryText, sessionId, (tok) => {
+      setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, text: m.text + tok } : m)));
+    }, signal);
+    if (done.session_id && done.session_id !== sessionId) setSessionId(done.session_id);
+    const mode: string = done.mode_used || "agent";
     const base = {
-      id: `cpl-${Date.now()}`,
       sender: "copilot" as const,
-      text: res.reply || "Copilot completed without an answer.",
       timestamp: nowTime(),
       mode,
       query: queryText,
     };
+    const finalize = (patch: Partial<MessageHistory>) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? {
+                ...m,
+                ...base,
+                ...patch,
+                text: m.text || "Copilot completed without an answer.",
+              }
+            : m
+        )
+      );
+    };
     if (mode === "rag") {
-      const sources = mapSources(res.citations);
-      pushCopilot({
-        ...base,
+      const sources = mapSources(done.citations);
+      finalize({
         steps: [
           { id: "intent", name: "Intent Classification", description: "RAG knowledge-base retrieval", status: "complete" },
           { id: "database", name: "Vector Search", description: "Cosine search over indexed SOP chunks", status: "complete", detail: `Retrieved top ${sources.length} chunks` },
@@ -204,24 +225,21 @@ export const AICopilotView: React.FC<AICopilotViewProps> = ({
         ragSources: sources,
       });
     } else if (mode === "sql") {
-      const cols: string[] = res.columns || [];
-      const rows: any[][] = res.rows || [];
-      pushCopilot({
-        ...base,
+      const cols: string[] = done.columns || [];
+      const rows: any[][] = done.rows || [];
+      finalize({
         steps: [
           { id: "intent", name: "Intent Classification", description: "Analytical SQL query", status: "complete" },
           { id: "sql", name: "Generate SQL", description: "Read-only SELECT with schema constraints", status: "complete" },
           { id: "validate", name: "Security Validation", description: "SELECT-only whitelist enforced", status: "complete" },
-          { id: "database", name: "Execute Query", description: `${res.row_count ?? rows.length} rows`, status: "complete" },
+          { id: "database", name: "Execute Query", description: `${done.row_count ?? rows.length} rows`, status: "complete" },
         ],
-        sqlQuery: res.generated_sql,
+        sqlQuery: done.generated_sql,
         tableData: rows.map((r, i) => ({ id: `row-${i}`, __cells: r })),
         genericColumns: cols,
       });
     } else if (mode === "agent") {
-      pushCopilot({ ...base, steps: mapTraces(res.action_traces) });
-    } else {
-      pushCopilot(base);
+      finalize({ steps: mapTraces(done.action_traces) });
     }
   }
 
