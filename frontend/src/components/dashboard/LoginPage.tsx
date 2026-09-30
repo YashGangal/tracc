@@ -11,17 +11,14 @@ interface LoginPageProps {
   onLogin: (session: { access_token: string; role: string; user_name: string; email: string; demo?: boolean }) => void;
 }
 
-// Demo credentials exist ONLY in dev builds. `import.meta.env.DEV` is
-// statically false in `vite build`, so esbuild drops this entire array
-// (and its passwords) from the production bundle shipped to users.
-const DEMO_ACCOUNTS: { email: string; password: string; role: string; badge: string; desc: string }[] = import.meta.env.DEV
-  ? [
-      { email: "alex.dispatcher@logistics.copilot", password: "dispatcher123", role: "Dispatcher", badge: "Active", desc: "Read & Query telemetry" },
-      { email: "sarah.manager@logistics.copilot", password: "manager123", role: "Ops Manager", badge: "Write", desc: "Upload & Trigger dispatches" },
-      { email: "admin@logistics.copilot", password: "admin123", role: "Admin", badge: "Root", desc: "Full fleet & agent permissions" },
-      { email: "viewer@logistics.copilot", password: "viewer123", role: "Viewer", badge: "Read", desc: "Audit log review only" },
-    ]
-  : [];
+// Demo credentials for local evaluation. These only unlock the seeded demo
+// dataset and are documented in the README, so they stay visible.
+const DEMO_ACCOUNTS: { email: string; password: string; role: string; badge: string; desc: string }[] = [
+  { email: "alex.dispatcher@logistics.copilot", password: "dispatcher123", role: "Dispatcher", badge: "Active", desc: "Read & Query telemetry" },
+  { email: "sarah.manager@logistics.copilot", password: "manager123", role: "Ops Manager", badge: "Write", desc: "Upload & Trigger dispatches" },
+  { email: "admin@logistics.copilot", password: "admin123", role: "Admin", badge: "Root", desc: "Full fleet & agent permissions" },
+  { email: "viewer@logistics.copilot", password: "viewer123", role: "Viewer", badge: "Read", desc: "Audit log review only" },
+];
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [email, setEmail] = useState(() => {
@@ -329,7 +326,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               </button>
             </form>
 
-            {DEMO_ACCOUNTS.length > 0 && (
             <details className="mt-5 rounded-xl border border-dashed border-white/15 px-4 py-3">
               <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-widest text-neutral-500 hover:text-neutral-300">
                 Try a demo role <span className="font-mono normal-case tracking-normal opacity-70">(demo only)</span>
@@ -385,7 +381,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 })}
               </div>
             </details>
-            )}
 
             <footer className="mt-5 flex items-center justify-between text-[11px] text-neutral-500">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-300">
