@@ -1431,3 +1431,19 @@ def test_carrier_detail_has_weekly_trend(dispatcher_headers):
     weekly = resp.json()["weekly_on_time"]
     assert len(weekly) == 7
     assert all(0 <= v <= 100 for v in weekly)
+
+
+def test_cors_extra_origins_merge():
+    from app.core.config import Settings
+
+    base = Settings(BACKEND_CORS_ORIGINS=["http://a.test"], CORS_EXTRA_ORIGINS="")
+    assert base.ALL_CORS_ORIGINS == ["http://a.test"]
+    extended = Settings(
+        BACKEND_CORS_ORIGINS=["http://a.test"],
+        CORS_EXTRA_ORIGINS="https://tracc-five.vercel.app, https://other.test ",
+    )
+    assert extended.ALL_CORS_ORIGINS == [
+        "http://a.test",
+        "https://tracc-five.vercel.app",
+        "https://other.test",
+    ]

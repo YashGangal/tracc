@@ -43,6 +43,14 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:8000",
     ]
+    # Comma-separated extra origins (e.g. the production frontend URL).
+    # Set CORS_EXTRA_ORIGINS on the host — never hardcode deployments here.
+    CORS_EXTRA_ORIGINS: str = ""
+
+    @property
+    def ALL_CORS_ORIGINS(self) -> List[str]:
+        extra = [o.strip() for o in (self.CORS_EXTRA_ORIGINS or "").split(",") if o.strip()]
+        return [*self.BACKEND_CORS_ORIGINS, *extra]
 
     # AI Providers & Keys
     OPENAI_API_KEY: Optional[str] = None

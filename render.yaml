@@ -30,3 +30,5 @@ services:
         sync: false
       - key: OPENROUTER_MODEL
         value: nvidia/nemotron-3-ultra-550b-a55b:free
+      - key: CORS_EXTRA_ORIGINS
+        sync: false

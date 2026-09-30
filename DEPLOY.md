@@ -36,6 +36,13 @@ In all three, set this environment variable (use *your* backend URL):
 
 Then open the site URL → log in with a demo account from the README → KPIs load.
 
+> **If login says "Backend unreachable":** the backend doesn't know your
+> frontend URL yet (browser CORS block). Fix: Render dashboard →
+> `tracc-backend` → **Environment** → add `CORS_EXTRA_ORIGINS` =
+> your exact frontend origin (e.g. `https://tracc-five.vercel.app`, no
+> trailing slash) → **Save** (auto-redeploys). Then **redeploy the frontend
+> too if you changed its env**, and retry after ~1 min (cold start).
+
 ## 3. Verify the full loop
 
 - Copilot → `hi` → real greeting (proves the NVIDIA key works in production)
