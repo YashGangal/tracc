@@ -122,5 +122,5 @@ Further reading: [`docs/product-requirements.md`](docs/product-requirements.md) 
 - **Money is `Float`, not `Numeric`.** Fine for synthetic demo data; a production ledger would migrate to `Numeric(12, 2)`.
 - **Naive datetimes.** All timestamps are UTC-naive — correct for single-timezone ops, insufficient for multi-TZ production.
 - **Free-tier LLM quotas.** OpenRouter (~50 req/day) and NVIDIA NIM (RPM-capped) fall back to offline heuristics when exhausted; the app stays fully usable, prose just gets templated.
-- **Demo credentials** ship only in dev builds (`import.meta.env.DEV`); production bundles contain none.
+- **Demo credentials** are one-click logins for the seeded demo dataset (documented above); they unlock nothing real.
 - **Business thresholds** (risk bands, 14-day window, breach rate, 48 mph) live in `backend/app/core/business_rules.py` — one place, human-tuned, not learned.
