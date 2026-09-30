@@ -1,0 +1,32 @@
+# Render blueprint for Tracc (free tier).
+#
+# Deploys ONLY the FastAPI backend. The frontend ships separately as a static
+# site (Cloudflare Pages / Netlify), and the database is the built-in SQLite
+# fallback (auto-seeds 10k loads on boot) — so no paid Postgres, no n8n needed.
+# The in-app automation runner already executes all 3 workflows natively.
+#
+# Usage: Render Dashboard -> New -> Blueprint -> connect this repo.
+
+services:
+  - type: web
+    name: tracc-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: WORKFLOW_API_TOKEN
+        generateValue: true
+      - key: AI_PROVIDER
+        value: nvidia
+      - key: NVIDIA_MODEL
+        value: nvidia/nemotron-3-super-120b-a12b
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: nvidia/nemotron-3-ultra-550b-a55b:free

@@ -62,6 +62,8 @@ docker compose up --build -d
 - API: `http://localhost:8000` (Swagger at `/docs`)
 - n8n: `http://localhost:5678` (import `workflows/*.json`, add a Postgres credential to Workflow A, then Publish)
 
+**Free cloud hosting:** [`DEPLOY.md`](DEPLOY.md) — backend on Render + frontend on Cloudflare Pages, $0/month.
+
 ### Option B — Local development
 
 ```bash

@@ -14,4 +14,6 @@ COPY backend/ /app/
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python app/db/seed_data.py && python -c \"from app.ml.predictor import _load_artifacts; _load_artifacts()\" && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# PORT is set by hosts like Render (default 10000); local Docker Compose
+# leaves it unset and falls back to 8000.
+CMD ["sh", "-c", "python app/db/seed_data.py && python -c \"from app.ml.predictor import _load_artifacts; _load_artifacts()\" && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
