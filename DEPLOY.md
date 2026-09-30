@@ -21,17 +21,20 @@ n8n skipped (the in-app automation runner already executes all 3 workflows).
 5. Note your backend URL, e.g. `https://tracc-backend.onrender.com`.
 6. Sanity check: open `https://tracc-backend.onrender.com/docs` — Swagger UI loads.
 
-## 2. Frontend — Cloudflare Pages
+## 2. Frontend — any static host (pick one)
 
-1. Sign up at [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Pages → Connect to Git** → select `tracc`.
-2. Project settings:
-   - **Root directory:** `frontend`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-   - **Environment variable:** `VITE_API_BASE=https://tracc-backend.onrender.com/api/v1`
-     (use *your* backend URL from step 1 — this is what connects the UI to the API)
-3. **Save and Deploy** (~2 min). You get `https://tracc.pages.dev`.
-4. Open it → log in with a demo account from the README → KPIs load.
+The app is plain static files (`dist/`), no server or routing rules needed.
+In all three, set this environment variable (use *your* backend URL):
+
+`VITE_API_BASE=https://tracc-backend.onrender.com/api/v1`
+
+| Host | How | Settings |
+|---|---|---|
+| **Cloudflare Pages** | Dash → Workers & Pages → Create → Pages → Connect to Git | Root `frontend` · Build `npm run build` · Output `dist` |
+| **Netlify** | Add new site → Import from Git | Base `frontend` · Build `npm run build` · Publish `dist` |
+| **Vercel** | Add New → Project → Import repo | Root Directory `frontend` (framework auto-detected as Vite) |
+
+Then open the site URL → log in with a demo account from the README → KPIs load.
 
 ## 3. Verify the full loop
 
