@@ -11,6 +11,13 @@
 
 The AI assists operations staff (recommend, analyze, summarize, alert). **Humans keep all operational decisions.**
 
+## Live demo
+
+- **App:** https://tracc-five.vercel.app/ (log in with a demo account below)
+- **API docs:** https://tracc-backend.onrender.com/docs
+
+> Free-tier hosting sleeps when idle — the first visit after ~15 min takes about a minute to wake up.
+
 ---
 
 ## Demo (60 seconds)
