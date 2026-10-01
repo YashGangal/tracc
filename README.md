@@ -25,13 +25,39 @@
 
 [**Live Demo**](#-live-demo) ·
 [**Screenshots**](#-screenshots) ·
+[**Why Tracc**](#why-tracc) ·
 [**Features**](#-features) ·
-[**Architecture**](#-architecture) ·
+[**Architecture**](#architecture) ·
 [**Quickstart**](#-quickstart) ·
 [**API**](#-api-reference) ·
 [**Docs**](#-documentation)
 
 </div>
+
+<details>
+<summary><b>Contents</b></summary>
+
+- [✨ Overview](#-overview)
+- [🌐 Live Demo](#-live-demo)
+- [📸 Screenshots](#-screenshots)
+- [❓ Why Tracc](#why-tracc)
+- [🧩 Features](#-features)
+- [🏗️ Architecture](#architecture)
+- [🔮 Explainable Delay Prediction](#explainable-delay-prediction)
+- [🛠️ Tech Stack](#tech-stack)
+- [🔁 How It Ships](#how-it-ships)
+- [🚀 Quickstart](#-quickstart)
+- [📡 API Reference](#-api-reference)
+- [✅ Quality & Testing](#quality--testing)
+- [📁 Project Structure](#project-structure)
+- [📚 Documentation](#-documentation)
+- [🗺️ Roadmap](#roadmap)
+- [⚖️ Known Limitations](#known-limitations)
+- [❓ FAQ](#faq)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+
+</details>
 
 <br/>
 
@@ -52,6 +78,37 @@ Freight operations run on scattered tools: SOPs buried in PDFs, KPIs in spreadsh
 | 🔮 **Predict** | Per-load late-delivery probability, with SHAP factor attribution translated into plain dispatcher language. |
 | 💬 **Ask** | One ChatGPT-style copilot that routes between chit-chat, guarded SQL analytics, SOP retrieval, and a transparent ReAct agent. |
 | ⚡ **Act** | An incident center with one-click resolution, plus n8n-powered automations for delays, daily briefings, and carrier breaches. |
+
+---
+
+## ❓ Why Tracc
+
+Dispatch teams live in one painful loop:
+
+```mermaid
+flowchart LR
+    subgraph Pain["Without Tracc"]
+        P1["SOPs buried in PDFs"]
+        P2["KPIs scattered across sheets"]
+        P3["Delays found after the damage"]
+    end
+    subgraph Gain["With Tracc"]
+        S1["Ask in plain words"]
+        S2["Live data plus cited SOPs"]
+        S3["Risk flagged before the damage"]
+    end
+    P1 --> S1
+    P2 --> S2
+    P3 --> S3
+```
+
+| Old way | The Tracc way |
+|---|---|
+| Hunt through PDFs for the breakdown procedure | Ask; get the cited SOP section in seconds |
+| Export CSVs to compute on-time delivery | Live OTD %, revenue, and lanes on one dashboard |
+| Find out about delays from angry consignees | ML flags at-risk loads with plain-English reasons |
+| Hand-write the daily briefing | Automated 07:00 ops report, idempotent per day |
+| Guess which carrier to trust | Leaderboard with real 7-week OTD history per carrier |
 
 ---
 
@@ -151,6 +208,29 @@ flowchart TD
 
 **Safety by design:** generated SQL is parsed and validated against an AST, restricted to a table whitelist, and executed read-only. SOP answers must cite their source documents.
 
+### Request lifecycle
+
+What happens between Enter and answer, using a delayed-loads question as the trace:
+
+```mermaid
+sequenceDiagram
+    actor D as Dispatcher
+    participant UI as React app
+    participant API as FastAPI
+    participant AI as Intent router
+    participant DB as Postgres or SQLite
+    participant LLM as LLM gateway
+    D->>UI: Which loads are delayed?
+    UI->>API: POST /copilot/chat
+    API->>AI: classify plus route
+    AI->>DB: guarded SELECT
+    DB-->>AI: rows
+    AI->>LLM: summarize with schema context
+    LLM-->>AI: bullets plus takeaway
+    AI-->>UI: reply plus table plus mode badge
+    UI-->>D: streamed answer
+```
+
 ---
 
 ## 🔮 Explainable Delay Prediction
@@ -187,6 +267,28 @@ Bands are tunable in [`backend/app/core/business_rules.py`](backend/app/core/bus
 | **Frontend** | React 19 · Vite · Tailwind 4 · Recharts · Lucide (route-split, `tsc` clean) |
 | **Automation** | n8n workflows + native in-app runner |
 | **Infrastructure** | Docker Compose (postgres, backend, frontend/nginx, n8n) · GitHub Actions CI (pytest + frontend build) |
+
+---
+
+## 🔁 How It Ships
+
+```mermaid
+flowchart TD
+    GH["GitHub main branch"] --> RL["Render blueprint<br/>Docker backend plus SQLite seed"]
+    GH --> VC["Vercel project<br/>Vite static build"]
+    VC -. "VITE_API_BASE" .-> RL
+    RL --> UP["Live demo URLs"]
+```
+
+Every push runs CI in parallel before anything can merge:
+
+```mermaid
+flowchart LR
+    PUSH["Push or PR to main"] --> BE["backend-test job<br/>seed 2000 plus train plus pytest"]
+    PUSH --> FE2["frontend-build job<br/>npm ci plus vite build"]
+    BE --> OK["Green merge"]
+    FE2 --> OK
+```
 
 ---
 
@@ -318,6 +420,62 @@ Deliberate trade-offs, documented for transparency.
 | **LLM quotas** | Free tiers (OpenRouter ~50 req/day, NVIDIA NIM RPM-capped) fall back to offline heuristics when exhausted. The app stays fully usable; responses become templated. |
 | **Demo credentials** | One-click logins for the seeded dataset only. |
 | **Business thresholds** | Risk bands, the 14-day window, breach rate, and the 48 mph limit live in `backend/app/core/business_rules.py`: one place, human-tuned, not learned. |
+
+---
+
+## 🗺️ Roadmap
+
+Shipped, then direction — ideas, not promises.
+
+| Status | Item |
+|---|---|
+| ✅ Shipped | Conversational copilot with streaming, memory, and name resolution |
+| ✅ Shipped | Explainable delay prediction with SHAP factor attribution |
+| ✅ Shipped | n8n automation verified firing against the live backend |
+| ✅ Shipped | Free cloud deployment (Render + Vercel) |
+| 🔭 Next | Slack/Teams notifications for breach alerts |
+| 🔭 Next | Live TMS/ELD feed adapter beside the synthetic dataset |
+| 🔭 Next | True token streaming from providers (currently word-chunked server-side) |
+| 🔭 Next | Mobile-first pass on the load board and drawer |
+
+---
+
+## ❓ FAQ
+
+<details>
+<summary><b>Do I need API keys to run it?</b></summary>
+
+No. Without keys the copilot runs on offline heuristics: intent routing, entity resolution, guardrailed SQL with canned safe queries, and cited SOP retrieval all work. Keys (OpenAI / Gemini / OpenRouter / NVIDIA) unlock full prose synthesis, with automatic failover between providers.
+
+</details>
+
+<details>
+<summary><b>Is any of this data real?</b></summary>
+
+No — the entire dataset is synthetic (10,000 loads, 500 carriers, 2,000 drivers) generated by `seed_data.py`. The cloud demo reseeds itself on every restart. Nothing here touches real freight, real companies, or real people.
+
+</details>
+
+<details>
+<summary><b>Do I need PostgreSQL or n8n to run it?</b></summary>
+
+Neither, for most uses. SQLite is the automatic local fallback, and the native in-app runner executes all three workflows without n8n. Docker Compose adds Postgres + pgvector and n8n for the full production-like stack.
+
+</details>
+
+<details>
+<summary><b>Why do answers sometimes turn templated?</b></summary>
+
+Free-tier LLM quotas (OpenRouter ~50 requests/day, NVIDIA RPM-capped) fall back to offline heuristics when exhausted. Structure, citations, tables, and traces stay correct — only the prose gets plainer until quota resets.
+
+</details>
+
+<details>
+<summary><b>Can I use this commercially?</b></summary>
+
+The code is MIT-licensed, but treat it as a demo-grade starting point: money is `Float`, timestamps are UTC-naive, JWTs can't be revoked, and the data is fictional. See [Known Limitations](#known-limitations).
+
+</details>
 
 ---
 
